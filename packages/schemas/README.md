@@ -86,7 +86,6 @@ interaction: {
 
 - [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — Generate signed receipts
 - [`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk) — Verify receipts (browser + Node.js)
-- [`@sonate/core`](https://www.npmjs.com/package/@sonate/core) — Core trust protocol
 
 ## License
 

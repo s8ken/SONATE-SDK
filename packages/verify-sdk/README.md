@@ -146,7 +146,6 @@ interface TrustReceipt {
 
 - [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — Generate signed receipts in your own applications
 - [`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas) — JSON Schema + TypeScript types
-- [`@sonate/core`](https://www.npmjs.com/package/@sonate/core) — Core trust protocol implementation
 
 ## License
 

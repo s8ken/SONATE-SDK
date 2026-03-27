@@ -8,11 +8,9 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "build:core": "npm run build --workspace=@sonate/core",
     "build:schemas": "npm run build --workspace=@sonate/schemas",
     "build:verify-sdk": "npm run build --workspace=@sonate/verify-sdk",
     "build:trust-receipts": "npm run build --workspace=@sonate/trust-receipts",
-    "build:sonate-receipt": "npm run build --workspace=sonate-receipt",
     "test": "npm run test --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present"
   },

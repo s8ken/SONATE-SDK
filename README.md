@@ -1,12 +1,10 @@
 # SONATE-SDK
 
-Public SDK monorepo for SONATE.
+Public SDK workspace for SONATE integrations and receipt verification.
 
 Packages:
 - `@sonate/trust-receipts`
-- `@sonate/core`
 - `@sonate/schemas`
 - `@sonate/verify-sdk`
-- `sonate-receipt`
 
-This repo intentionally excludes private product IP such as the trust kernel, policy packs, runtime evidence logic, and governance orchestration.
+This repo intentionally excludes private product IP such as scoring logic, trust kernel policy packs, runtime evidence logic, evaluators, and governance orchestration.
