@@ -1,0 +1,57 @@
+{
+  "name": "@sonate/verify-sdk",
+  "version": "2.0.0",
+  "description": "Client-side SDK for verifying SONATE trust receipts",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "vitest run",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
+  },
+  "keywords": [
+    "sonate",
+    "trust",
+    "verification",
+    "ed25519",
+    "receipts",
+    "ai-safety"
+  ],
+  "author": "SONATE",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/s8ken/SONATE-SDK.git",
+    "directory": "packages/verify-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/s8ken/SONATE-SDK/issues"
+  },
+  "homepage": "https://github.com/s8ken/SONATE-SDK/tree/main/packages/verify-sdk#readme",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
