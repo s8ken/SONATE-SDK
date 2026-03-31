@@ -5,6 +5,8 @@
 
 Shared schema definitions for SONATE Trust Receipts — JSON Schema validation + TypeScript types.
 
+Use this alongside [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) when you want typed receipt objects or local schema validation in downstream tooling.
+
 ## Install
 
 ```bash
@@ -84,7 +86,8 @@ interaction: {
 
 ## Related Packages
 
-- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — Generate signed receipts
+- [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) — primary platform SDK for evaluating interactions and receiving signed receipts
+- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — advanced local/self-managed receipt generation
 - [`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk) — Verify receipts (browser + Node.js)
 
 ## License

@@ -12,7 +12,7 @@ SONATE gives developers a way to make AI interactions cryptographically verifiab
 
 This repository contains the public integration and verification surface:
 - [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) — official platform client for evaluating interactions and receiving signed receipts
-- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — generate signed receipts in your app
+- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — advanced local or self-managed receipt tooling
 - [`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk) — verify receipts in Node.js or the browser
 - [`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas) — shared JSON Schema and TypeScript types
 

@@ -3,7 +3,9 @@
 [![npm version](https://img.shields.io/npm/v/@sonate/verify-sdk.svg)](https://www.npmjs.com/package/@sonate/verify-sdk)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Client-side SDK for verifying SONATE Trust Receipts. Works in Node.js and browsers — zero backend calls required.
+Client-side SDK for verifying SONATE Trust Receipts. Works in Node.js and browsers.
+
+This is the verification companion to [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk), not the primary integration path.
 
 ## Install
 
@@ -144,7 +146,8 @@ interface TrustReceipt {
 
 ## Related Packages
 
-- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — Generate signed receipts in your own applications
+- [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) — send interactions to SONATE and receive signed governance receipts
+- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — advanced local/self-managed receipt tooling
 - [`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas) — JSON Schema + TypeScript types
 
 ## License
