@@ -136,14 +136,12 @@ If you want local receipt generation or advanced self-managed signing primitives
 
 ## Examples
 
-Repo examples:
+Reference examples in this repository:
 
-```bash
-node --env-file=.env ./packages/sdk/examples/evaluate.ts
-node --env-file=.env ./packages/sdk/examples/wrap-openai.ts
-```
+- [`examples/evaluate.ts`](./examples/evaluate.ts) — direct `client.evaluate(...)`
+- [`examples/wrap-openai.ts`](./examples/wrap-openai.ts) — `client.wrap(...)` around OpenAI
 
-Run them from the `SONATE-SDK` repository root after setting `SONATE_API_KEY`.
+Use them as copy-pasteable templates in your own project after setting `SONATE_API_KEY`.
 `wrap-openai.ts` also requires `OPENAI_API_KEY`.
 
 ## License
