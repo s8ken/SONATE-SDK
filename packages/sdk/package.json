@@ -1,0 +1,59 @@
+{
+  "name": "@sonate/sdk",
+  "version": "2.0.1",
+  "description": "Official platform SDK for sending AI interactions to SONATE and receiving signed governance receipts",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "vitest run",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
+  },
+  "keywords": [
+    "sonate",
+    "sdk",
+    "ai-governance",
+    "trust-receipts",
+    "verifiable-ai",
+    "constitutional-ai",
+    "api-client"
+  ],
+  "author": "SONATE",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/s8ken/SONATE-SDK.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/s8ken/SONATE-SDK/issues"
+  },
+  "homepage": "https://github.com/s8ken/SONATE-SDK/tree/main/packages/sdk#readme",
+  "dependencies": {
+    "@sonate/schemas": "^2.0.1",
+    "@sonate/verify-sdk": "^2.0.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

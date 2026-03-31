@@ -1,8 +1,9 @@
 # SONATE-SDK
 
-Public SDK workspace for integrating with SONATE Trust Receipts.
+Public SDK workspace for integrating with SONATE platform receipts and verification.
 
 SONATE gives developers a way to make AI interactions cryptographically verifiable:
+- send interactions to SONATE and receive signed governance receipts
 - generate signed receipts for model outputs
 - verify signatures and hash-chain integrity offline
 - validate receipt structure against a shared schema
@@ -10,6 +11,7 @@ SONATE gives developers a way to make AI interactions cryptographically verifiab
 ## What Is Public
 
 This repository contains the public integration and verification surface:
+- [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) — official platform client for evaluating interactions and receiving signed receipts
 - [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — generate signed receipts in your app
 - [`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk) — verify receipts in Node.js or the browser
 - [`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas) — shared JSON Schema and TypeScript types
@@ -30,34 +32,64 @@ This is the same design principle used in other infrastructure products: the int
 Install the public packages you need:
 
 ```bash
-npm install @sonate/trust-receipts @sonate/verify-sdk @sonate/schemas
+npm install @sonate/sdk
 ```
 
-### 1. Generate A Receipt
+### 1. Evaluate An Interaction
 
 ```ts
-import { TrustReceipts } from "@sonate/trust-receipts";
+import { SonateClient } from "@sonate/sdk";
 
-const receipts = new TrustReceipts({
-  privateKey: process.env.SONATE_PRIVATE_KEY!,
+const sonate = new SonateClient({
+  apiKey: process.env.SONATE_API_KEY!,
 });
 
-const { response, receipt } = await receipts.wrap(
-  () => model.complete("Explain zero-knowledge proofs."),
-  {
-    sessionId: "session-123",
-    input: "Explain zero-knowledge proofs.",
-  }
-);
+const evaluation = await sonate.evaluate({
+  sessionId: "session-123",
+  model: "gpt-4o-mini",
+  prompt: "Explain zero-knowledge proofs.",
+  response: "Zero-knowledge proofs let one party prove a statement without revealing the secret itself."
+});
+
+console.log(evaluation.status);
+console.log(evaluation.receiptHash);
+console.log(evaluation.verificationUrl);
 ```
 
-### 2. Verify A Receipt
+### 2. Wrap An Existing Model Call
+
+```ts
+import OpenAI from "openai";
+import { SonateClient } from "@sonate/sdk";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const sonate = new SonateClient({ apiKey: process.env.SONATE_API_KEY! });
+
+const { result, evaluation } = await sonate.wrap(
+  () =>
+    openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: "Explain zero-knowledge proofs." }],
+    }),
+  {
+    sessionId: "session-123",
+    prompt: "Explain zero-knowledge proofs.",
+    model: "gpt-4o-mini",
+    provider: "openai",
+  }
+);
+
+console.log(result.choices[0].message.content);
+console.log(evaluation.kernelSummary);
+```
+
+### 3. Verify A Receipt
 
 ```ts
 import { fetchPublicKey, verify } from "@sonate/verify-sdk";
 
 const publicKey = await fetchPublicKey();
-const result = await verify(receipt, publicKey);
+const result = await verify(evaluation.receipt, publicKey);
 
 console.log(result.valid);
 console.log(result.errors);
@@ -74,13 +106,24 @@ console.log(validation.valid);
 
 ## Package Guide
 
+### `@sonate/sdk`
+
+Use this when you want to:
+- send interactions to the SONATE platform
+- receive constitutional scores, kernel verdicts, and signed receipts
+- wrap existing model calls with one client
+- integrate with the public verifier flow
+
+See: [`packages/sdk`](./packages/sdk)
+
 ### `@sonate/trust-receipts`
 
 Use this when you want to:
-- wrap model calls
+- generate receipts locally
 - sign receipts with Ed25519
 - hash-chain multi-turn conversations
 - anchor receipt hashes into your own audit flow
+- build self-managed or hybrid attestation flows
 
 See: [`packages/trust-receipts`](./packages/trust-receipts)
 
@@ -106,15 +149,17 @@ See: [`packages/schemas`](./packages/schemas)
 ## Recommended Adoption Pattern
 
 For most teams:
-1. Start with `@sonate/trust-receipts` in the app that produces model outputs.
+1. Start with `@sonate/sdk` to send interactions to SONATE and receive a signed receipt.
 2. Add `@sonate/verify-sdk` anywhere that needs independent verification.
 3. Use `@sonate/schemas` in shared tooling, ingestion pipelines, or compliance workflows.
+4. Only use `@sonate/trust-receipts` if you specifically need self-managed receipt generation.
 
 ## Repository Structure
 
 ```text
 SONATE-SDK/
 ├── packages/
+│   ├── sdk/
 │   ├── schemas/
 │   ├── trust-receipts/
 │   └── verify-sdk/
