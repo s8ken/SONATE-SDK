@@ -41,6 +41,10 @@ console.log(evaluation.receiptHash);
 console.log(evaluation.verificationUrl);
 ```
 
+Full examples:
+- [`examples/evaluate.ts`](./examples/evaluate.ts) — submit an existing prompt/response pair to SONATE
+- [`examples/wrap-openai.ts`](./examples/wrap-openai.ts) — wrap an OpenAI call and attach a SONATE receipt
+
 ## Wrap Existing Model Calls
 
 ```ts
@@ -129,6 +133,18 @@ If you want local receipt generation or advanced self-managed signing primitives
 - [`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk) — local cryptographic verification
 - [`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas) — shared receipt types and schema validation
 - [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — advanced local/self-managed receipt tooling
+
+## Examples
+
+Repo examples:
+
+```bash
+node --env-file=.env ./packages/sdk/examples/evaluate.ts
+node --env-file=.env ./packages/sdk/examples/wrap-openai.ts
+```
+
+Run them from the `SONATE-SDK` repository root after setting `SONATE_API_KEY`.
+`wrap-openai.ts` also requires `OPENAI_API_KEY`.
 
 ## License
 
