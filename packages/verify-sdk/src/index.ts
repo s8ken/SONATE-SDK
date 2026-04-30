@@ -177,23 +177,6 @@ async function verifyEd25519(
   try {
     // Use @noble/ed25519 (works in both environments)
     const ed = (await import('@noble/ed25519')) as any;
-
-    // Configure sha512 for @noble/ed25519
-    if (ed.etc && !ed.etc.sha512Sync) {
-      if (isBrowser && crypto.subtle) {
-        // Browser: use crypto.subtle via async
-        ed.etc.sha512Async = async (message: Uint8Array) => {
-          const hashBuffer = await crypto.subtle.digest('SHA-512', new Uint8Array(message));
-          return new Uint8Array(hashBuffer);
-        };
-      } else {
-        // Node.js: use crypto module
-        const nodeCrypto = await import('crypto');
-        ed.etc.sha512Sync = (...m: Uint8Array[]) =>
-          new Uint8Array(nodeCrypto.createHash('sha512').update(m[0]).digest());
-      }
-    }
-
     return await ed.verifyAsync(signature, message, publicKey);
   } catch (error) {
     console.error('Ed25519 verification error:', error);

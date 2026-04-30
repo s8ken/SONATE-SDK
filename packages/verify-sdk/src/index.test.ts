@@ -9,15 +9,6 @@ import * as ed from '@noble/ed25519';
 import { createHash } from 'crypto';
 import { verify, quickVerify, verifyBatch, canonicalize, type TrustReceipt } from './index';
 
-// Configure sha512 for @noble/ed25519 in Node.js
-beforeAll(async () => {
-  const nodeCrypto = await import('crypto');
-  if (ed.etc) {
-    ed.etc.sha512Sync = (...m: Uint8Array[]) =>
-      new Uint8Array(nodeCrypto.createHash('sha512').update(m[0]).digest());
-  }
-});
-
 // ---- Helpers ----
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -102,7 +93,7 @@ let publicKey: Uint8Array;
 let publicKeyHex: string;
 
 beforeAll(async () => {
-  privateKey = ed.utils.randomPrivateKey();
+  privateKey = ed.utils.randomSecretKey();
   publicKey = await ed.getPublicKeyAsync(privateKey);
   publicKeyHex = bytesToHex(publicKey);
 });
@@ -144,7 +135,7 @@ describe('Signature Checks', () => {
 
   it('wrong public key fails signature check', async () => {
     const receipt = await buildSignedReceipt(privateKey);
-    const wrongKey = ed.utils.randomPrivateKey();
+    const wrongKey = ed.utils.randomSecretKey();
     const wrongPubKey = await ed.getPublicKeyAsync(wrongKey);
     const result = await verify(receipt, bytesToHex(wrongPubKey));
     expect(result.checks.signature.passed).toBe(false);

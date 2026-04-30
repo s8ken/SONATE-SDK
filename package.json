@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build:schemas && npm run build:verify-sdk && npm run build:trust-receipts && npm run build --workspace=@sonate/sdk",
     "build:schemas": "npm run build --workspace=@sonate/schemas",
     "build:verify-sdk": "npm run build --workspace=@sonate/verify-sdk",
     "build:trust-receipts": "npm run build --workspace=@sonate/trust-receipts",

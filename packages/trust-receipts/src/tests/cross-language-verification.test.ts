@@ -137,8 +137,11 @@ describe('Cross-Language Receipt Verification', () => {
         receiptHash: sha256('tampered-payload'),
       };
 
-      const verified = await receipts.verifyReceipt(tampered);
-      assert.strictEqual(verified, false, 'Tampered receiptHash should fail verification');
+      await assert.rejects(
+        () => receipts.verifyReceipt(tampered),
+        /receiptHash does not match payload/,
+        'Tampered receiptHash should be rejected before signature verification'
+      );
     });
 
     it('should fail verification with wrong public key', async () => {

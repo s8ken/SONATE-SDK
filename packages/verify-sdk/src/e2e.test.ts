@@ -10,15 +10,6 @@ import * as ed from '@noble/ed25519';
 import { createHash } from 'crypto';
 import { verify, canonicalize, type TrustReceipt } from './index';
 
-// Configure sha512
-beforeAll(async () => {
-  const nodeCrypto = await import('crypto');
-  if (ed.etc) {
-    ed.etc.sha512Sync = (...m: Uint8Array[]) =>
-      new Uint8Array(nodeCrypto.createHash('sha512').update(m[0]).digest());
-  }
-});
-
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -98,7 +89,7 @@ describe('E2E: Generate → Verify Pipeline', () => {
   let publicKeyHex: string;
 
   beforeAll(async () => {
-    privateKey = ed.utils.randomPrivateKey();
+    privateKey = ed.utils.randomSecretKey();
     const publicKey = await ed.getPublicKeyAsync(privateKey);
     publicKeyHex = bytesToHex(publicKey);
   });

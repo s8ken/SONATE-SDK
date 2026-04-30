@@ -1,6 +1,6 @@
 {
   "name": "@sonate/sdk",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Official platform SDK for sending AI interactions to SONATE and receiving signed governance receipts",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -43,7 +43,7 @@
   "homepage": "https://github.com/s8ken/SONATE-SDK/tree/main/packages/sdk#readme",
   "dependencies": {
     "@sonate/schemas": "^2.0.1",
-    "@sonate/verify-sdk": "^2.0.1"
+    "@sonate/verify-sdk": "^2.0.2"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
