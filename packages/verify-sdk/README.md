@@ -3,9 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@sonate/verify-sdk.svg)](https://www.npmjs.com/package/@sonate/verify-sdk)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Client-side SDK for verifying SONATE Trust Receipts. Works in Node.js and browsers.
-
-This is the verification companion to [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk), not the primary integration path.
+Client-side SDK for verifying SONATE Trust Receipts. Works in Node.js and browsers — zero backend calls required.
 
 ## Install
 
@@ -80,7 +78,7 @@ const key = await fetchPublicKey('https://your-server.com/api/public-key');
 
 ### `canonicalize(obj)`
 
-Deterministic JSON serialization (RFC 8785). Useful for building custom verification flows.
+Deterministic JSON serialization. Useful for building custom verification flows.
 
 ```typescript
 import { canonicalize } from '@sonate/verify-sdk';
@@ -93,10 +91,15 @@ const canonical = canonicalize({ b: 2, a: 1 });
 
 | Check | What it verifies |
 |-------|-----------------|
-| **Structure** | Receipt has `id`, `timestamp`, and `signature` fields |
-| **Signature** | Ed25519 signature over canonical receipt content |
+| **Structure** | Receipt has the required `id` and `signature` fields (V2 format) |
+| **Hash** | `id` matches `SHA-256` of the canonical receipt payload — the content hasn't been altered |
+| **Signature** | Ed25519 signature over the canonical receipt content |
 | **Chain** | `chain_hash` matches `SHA-256(canonical_content + previous_hash)` |
-| **Timestamp** | Not in the future, not older than 1 year |
+| **Timestamp** | Not in the future (5-min skew), not older than `maxAgeMs` (default 1 year) |
+
+> **Scope:** these checks prove a receipt is **authentic and untampered** — it was signed
+> by the holder of the key and nothing has been changed since. They do **not** re-derive the
+> trust score; `result.trustScore` is read from the signed payload (authentic as issued).
 
 ## Browser Support
 
@@ -119,7 +122,7 @@ The SDK verifies V2 Trust Receipts:
 ```typescript
 interface TrustReceipt {
   id: string;              // SHA-256 of canonical content
-  version: '2.0.0';
+  version: '2.0.0' | '2.2.0';
   timestamp: string;       // ISO 8601
   session_id: string;
   agent_did: string;       // did:web:...
@@ -146,9 +149,9 @@ interface TrustReceipt {
 
 ## Related Packages
 
-- [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) — send interactions to SONATE and receive signed governance receipts
-- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — advanced local/self-managed receipt tooling
+- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — Generate signed receipts in your own applications
 - [`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas) — JSON Schema + TypeScript types
+- [`@sonate/core`](https://www.npmjs.com/package/@sonate/core) — Core trust protocol implementation
 
 ## License
 

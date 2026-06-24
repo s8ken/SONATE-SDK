@@ -7,18 +7,43 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as ed from '@noble/ed25519';
 import { createHash } from 'crypto';
-import { verify, quickVerify, verifyBatch, canonicalize, type TrustReceipt } from './index';
+import {
+  verify,
+  quickVerify,
+  verifyBatch,
+  canonicalize,
+  isTrustedIssuer,
+  type TrustReceipt,
+} from './index';
+
+// Configure sha512 for older @noble/ed25519 in Node.js (best-effort: newer versions
+// freeze `etc` and ship a built-in hash, so the assignment is guarded).
+beforeAll(async () => {
+  const nodeCrypto = await import('crypto');
+  try {
+    if (ed.etc && !ed.etc.sha512Sync && !ed.etc.sha512Async) {
+      ed.etc.sha512Sync = (...m: Uint8Array[]) =>
+        new Uint8Array(nodeCrypto.createHash('sha512').update(m[0]).digest());
+    }
+  } catch {
+    /* etc frozen on newer noble — built-in hash is used */
+  }
+});
 
 // ---- Helpers ----
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
 function sha256(data: string): string {
   return createHash('sha256').update(data).digest('hex');
+}
+
+function generatePrivateKey(): Uint8Array {
+  return ed.utils.randomSecretKey();
 }
 
 /**
@@ -31,7 +56,7 @@ async function buildSignedReceipt(
   previousHash = 'GENESIS'
 ): Promise<TrustReceipt> {
   const base: any = {
-    version: '2.0.0',
+    version: '2.2.0',
     timestamp: new Date().toISOString(),
     session_id: `test-${Date.now()}`,
     agent_did: 'did:web:yseeku.com:agents:test',
@@ -93,7 +118,7 @@ let publicKey: Uint8Array;
 let publicKeyHex: string;
 
 beforeAll(async () => {
-  privateKey = ed.utils.randomSecretKey();
+  privateKey = generatePrivateKey();
   publicKey = await ed.getPublicKeyAsync(privateKey);
   publicKeyHex = bytesToHex(publicKey);
 });
@@ -103,10 +128,11 @@ describe('Structure Checks', () => {
     const receipt = await buildSignedReceipt(privateKey);
     const result = await verify(receipt, publicKeyHex);
     expect(result.checks.structure.passed).toBe(true);
+    expect(result.checks.hash.passed).toBe(true);
   });
 
   it('receipt missing id and signature fails structure check', async () => {
-    const receipt = { version: '2.0.0' } as any;
+    const receipt = { version: '2.2.0' } as any;
     const result = await verify(receipt, publicKeyHex);
     expect(result.checks.structure.passed).toBe(false);
     expect(result.valid).toBe(false);
@@ -135,7 +161,7 @@ describe('Signature Checks', () => {
 
   it('wrong public key fails signature check', async () => {
     const receipt = await buildSignedReceipt(privateKey);
-    const wrongKey = ed.utils.randomSecretKey();
+    const wrongKey = generatePrivateKey();
     const wrongPubKey = await ed.getPublicKeyAsync(wrongKey);
     const result = await verify(receipt, bytesToHex(wrongPubKey));
     expect(result.checks.signature.passed).toBe(false);
@@ -146,6 +172,22 @@ describe('Signature Checks', () => {
     (receipt as any).signature = undefined;
     const result = await verify(receipt, publicKeyHex);
     expect(result.checks.signature.passed).toBe(false);
+  });
+});
+
+describe('Receipt Hash Checks', () => {
+  it('valid receipt id matches canonical payload', async () => {
+    const receipt = await buildSignedReceipt(privateKey);
+    const result = await verify(receipt, publicKeyHex);
+    expect(result.checks.hash.passed).toBe(true);
+  });
+
+  it('tampered receipt id fails canonical payload check', async () => {
+    const receipt = await buildSignedReceipt(privateKey);
+    receipt.id = '0'.repeat(64);
+    const result = await verify(receipt, publicKeyHex);
+    expect(result.checks.hash.passed).toBe(false);
+    expect(result.valid).toBe(false);
   });
 });
 
@@ -193,6 +235,26 @@ describe('Timestamp Checks', () => {
   });
 });
 
+describe('Malformed input handling', () => {
+  it('malformed signature hex fails the signature check but still runs other checks', async () => {
+    const receipt = await buildSignedReceipt(privateKey);
+    receipt.signature.value = 'zz-not-hex'; // invalid encoding
+    const result = await verify(receipt, publicKeyHex);
+    expect(result.checks.signature.passed).toBe(false);
+    expect(result.valid).toBe(false);
+    // chain + timestamp should still have been evaluated, not skipped by a thrown error
+    expect(result.checks.chain.passed).toBe(true);
+    expect(result.checks.timestamp.passed).toBe(true);
+  });
+
+  it('malformed public key hex fails gracefully', async () => {
+    const receipt = await buildSignedReceipt(privateKey);
+    const result = await verify(receipt, 'not-a-valid-hex-key');
+    expect(result.checks.signature.passed).toBe(false);
+    expect(result.valid).toBe(false);
+  });
+});
+
 describe('quickVerify and verifyBatch', () => {
   it('quickVerify returns boolean', async () => {
     const receipt = await buildSignedReceipt(privateKey);
@@ -210,5 +272,40 @@ describe('quickVerify and verifyBatch', () => {
     expect(batch.total).toBe(2);
     expect(batch.valid).toBe(1);
     expect(batch.invalid).toBe(1);
+  });
+});
+
+describe('Configurable timestamp window', () => {
+  it('old receipt passes with extended maxAgeMs', async () => {
+    const twoYearsAgo = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString();
+    const receipt = await buildSignedReceipt(privateKey, { timestamp: twoYearsAgo } as any);
+    const result = await verify(receipt, publicKeyHex, {
+      maxAgeMs: 3 * 365 * 24 * 60 * 60 * 1000,
+    });
+    expect(result.checks.timestamp.passed).toBe(true);
+  });
+
+  it('old receipt fails with default maxAgeMs', async () => {
+    const twoYearsAgo = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString();
+    const receipt = await buildSignedReceipt(privateKey, { timestamp: twoYearsAgo } as any);
+    const result = await verify(receipt, publicKeyHex);
+    expect(result.checks.timestamp.passed).toBe(false);
+  });
+});
+
+describe('isTrustedIssuer', () => {
+  it('matches exact agent DID', async () => {
+    const receipt = await buildSignedReceipt(privateKey);
+    expect(isTrustedIssuer(receipt, ['did:web:yseeku.com:agents:test'])).toBe(true);
+  });
+
+  it('matches agent DID prefix', async () => {
+    const receipt = await buildSignedReceipt(privateKey);
+    expect(isTrustedIssuer(receipt, ['did:web:yseeku.com:agents'])).toBe(true);
+  });
+
+  it('rejects non-matching issuer', async () => {
+    const receipt = await buildSignedReceipt(privateKey);
+    expect(isTrustedIssuer(receipt, ['did:web:other.com:agents:unknown'])).toBe(false);
   });
 });

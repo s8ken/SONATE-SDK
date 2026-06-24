@@ -10,12 +10,31 @@ import * as ed from '@noble/ed25519';
 import { createHash } from 'crypto';
 import { verify, canonicalize, type TrustReceipt } from './index';
 
+// Configure sha512 (best-effort: newer @noble/ed25519 freezes `etc` + ships a built-in hash)
+beforeAll(async () => {
+  const nodeCrypto = await import('crypto');
+  try {
+    if (ed.etc && !ed.etc.sha512Sync && !ed.etc.sha512Async) {
+      ed.etc.sha512Sync = (...m: Uint8Array[]) =>
+        new Uint8Array(nodeCrypto.createHash('sha512').update(m[0]).digest());
+    }
+  } catch {
+    /* etc frozen on newer noble — built-in hash is used */
+  }
+});
+
 function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function sha256(data: string): string {
   return createHash('sha256').update(data).digest('hex');
+}
+
+function generatePrivateKey(): Uint8Array {
+  return ed.utils.randomSecretKey();
 }
 
 /**
@@ -29,7 +48,7 @@ async function generateReceipt(
 ): Promise<TrustReceipt> {
   // Step 1: Build base receipt (no id, no signature, chain_hash='')
   const receiptBase: any = {
-    version: '2.0.0',
+    version: '2.2.0',
     timestamp: new Date().toISOString(),
     session_id: `e2e-session-${Date.now()}`,
     agent_did: 'did:web:yseeku.com:agents:e2e-agent',
@@ -89,12 +108,12 @@ describe('E2E: Generate → Verify Pipeline', () => {
   let publicKeyHex: string;
 
   beforeAll(async () => {
-    privateKey = ed.utils.randomSecretKey();
+    privateKey = generatePrivateKey();
     const publicKey = await ed.getPublicKeyAsync(privateKey);
     publicKeyHex = bytesToHex(publicKey);
   });
 
-  it('generates a receipt that passes all 4 verification checks', async () => {
+  it('generates a receipt that passes all verification checks', async () => {
     const receipt = await generateReceipt(privateKey, 'GENESIS', 0, {
       prompt: 'Explain quantum computing',
       response: 'Quantum computing uses qubits to perform parallel computations.',
@@ -104,6 +123,7 @@ describe('E2E: Generate → Verify Pipeline', () => {
     const result = await verify(receipt, publicKeyHex);
 
     expect(result.checks.structure.passed).toBe(true);
+    expect(result.checks.hash.passed).toBe(true);
     expect(result.checks.signature.passed).toBe(true);
     expect(result.checks.chain.passed).toBe(true);
     expect(result.checks.timestamp.passed).toBe(true);
@@ -130,22 +150,26 @@ describe('E2E: Generate → Verify Pipeline', () => {
 
   it('verifies a chain of 3 receipts with correct chain integrity', async () => {
     const receipt1 = await generateReceipt(privateKey, 'GENESIS', 0, {
-      prompt: 'Hello', response: 'Hi there!', model: 'test',
+      prompt: 'Hello',
+      response: 'Hi there!',
+      model: 'test',
     });
     const result1 = await verify(receipt1, publicKeyHex);
     expect(result1.valid).toBe(true);
 
-    const receipt2 = await generateReceipt(
-      privateKey, receipt1.chain.chain_hash, 1,
-      { prompt: 'How are you?', response: 'I am doing well.', model: 'test' }
-    );
+    const receipt2 = await generateReceipt(privateKey, receipt1.chain.chain_hash, 1, {
+      prompt: 'How are you?',
+      response: 'I am doing well.',
+      model: 'test',
+    });
     const result2 = await verify(receipt2, publicKeyHex);
     expect(result2.valid).toBe(true);
 
-    const receipt3 = await generateReceipt(
-      privateKey, receipt2.chain.chain_hash, 2,
-      { prompt: 'Goodbye', response: 'Take care!', model: 'test' }
-    );
+    const receipt3 = await generateReceipt(privateKey, receipt2.chain.chain_hash, 2, {
+      prompt: 'Goodbye',
+      response: 'Take care!',
+      model: 'test',
+    });
     const result3 = await verify(receipt3, publicKeyHex);
     expect(result3.valid).toBe(true);
 

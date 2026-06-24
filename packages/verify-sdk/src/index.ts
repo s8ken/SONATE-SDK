@@ -17,6 +17,8 @@
  * ```
  */
 
+import { canonicalize as canonicalizeRfc8785 } from 'json-canonicalize';
+
 // Use Web Crypto API for browser compatibility
 const isBrowser = typeof window !== 'undefined';
 
@@ -24,7 +26,7 @@ export interface TrustReceipt {
   /** V2 receipt ID (SHA-256 hash of canonical content) */
   id: string;
   /** Receipt schema version */
-  version: '2.0.0';
+  version: '2.0.0' | '2.2.0';
   /** ISO 8601 timestamp */
   timestamp: string;
   /** Session identifier */
@@ -99,6 +101,7 @@ export interface VerificationResult {
   checks: {
     structure: { passed: boolean; message: string };
     signature: { passed: boolean; message: string };
+    hash: { passed: boolean; message: string };
     chain: { passed: boolean; message: string };
     timestamp: { passed: boolean; message: string };
   };
@@ -130,12 +133,17 @@ export async function fetchPublicKey(url?: string): Promise<string> {
 }
 
 /**
- * Convert hex string to Uint8Array
+ * Convert hex string to Uint8Array.
+ * Validates the input so malformed signatures/keys fail loudly rather than
+ * silently decoding to zero bytes (which would mask tampering as a clean mismatch).
  */
 function hexToBytes(hex: string): Uint8Array {
+  if (typeof hex !== 'string' || hex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(hex)) {
+    throw new Error('Invalid hex encoding');
+  }
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
   }
   return bytes;
 }
@@ -145,7 +153,7 @@ function hexToBytes(hex: string): Uint8Array {
  */
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
@@ -177,58 +185,105 @@ async function verifyEd25519(
   try {
     // Use @noble/ed25519 (works in both environments)
     const ed = (await import('@noble/ed25519')) as any;
+
+    // Best-effort SHA-512 wiring for older @noble/ed25519 (<3.1), which needs a hash
+    // impl. Newer versions ship a built-in hash and FREEZE `etc`, so assigning to it
+    // throws in strict-mode (ESM) consumers. That throw must never reach the verify
+    // call below (it would fail every receipt), so it is guarded — `verifyAsync` works
+    // without any configuration on those versions.
+    try {
+      if (ed.etc && !ed.etc.sha512Sync && !ed.etc.sha512Async) {
+        if (isBrowser && crypto.subtle) {
+          ed.etc.sha512Async = async (msg: Uint8Array) =>
+            new Uint8Array(await crypto.subtle.digest('SHA-512', new Uint8Array(msg)));
+        } else {
+          const nodeCrypto = await import('crypto');
+          ed.etc.sha512Sync = (...m: Uint8Array[]) =>
+            new Uint8Array(nodeCrypto.createHash('sha512').update(m[0]).digest());
+        }
+      }
+    } catch {
+      // `etc` is frozen on newer @noble/ed25519 — fine, it has a built-in hash.
+    }
+
     return await ed.verifyAsync(signature, message, publicKey);
-  } catch (error) {
-    console.error('Ed25519 verification error:', error);
+  } catch {
+    // A malformed signature/key or a tampered receipt fails verification.
+    // This is an expected outcome (it powers the tamper test), so we return
+    // false rather than logging to the consumer's console.
     return false;
   }
 }
 
 /**
- * Canonicalize object for signing (deterministic JSON)
+ * Canonicalize a receipt for signing/verification per RFC 8785.
  *
- * CRITICAL: This function MUST produce identical output to:
- * - receipt-generator.ts canonicalize()
- * - public-demo.routes.ts canonicalize()
- *
- * Rules:
- * - Recursively sort keys at every nesting level
- * - Filter out undefined values
- * - Arrays preserve order
+ * Producer (receipt-generator, public-demo route) and verifier (this SDK)
+ * both delegate to the same `json-canonicalize` library so signature input
+ * bytes are identical across processes and runtimes. `undefined` values are
+ * stripped first to match the prior hand-rolled behaviour, since they aren't
+ * representable in canonical JSON.
  */
 export function canonicalize(obj: any): string {
-  if (obj === null || typeof obj !== 'object') {
-    return JSON.stringify(obj);
-  }
-
-  if (Array.isArray(obj)) {
-    return '[' + obj.map(canonicalize).join(',') + ']';
-  }
-
-  const sortedKeys = Object.keys(obj).sort();
-  const pairs = sortedKeys
-    .filter(key => obj[key] !== undefined)
-    .map(key => JSON.stringify(key) + ':' + canonicalize(obj[key]));
-
-  return '{' + pairs.join(',') + '}';
+  return canonicalizeRfc8785(stripUndefined(obj));
 }
+
+function stripUndefined(value: any): any {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(stripUndefined);
+  const out: Record<string, any> = {};
+  for (const key of Object.keys(value)) {
+    if (value[key] !== undefined) out[key] = stripUndefined(value[key]);
+  }
+  return out;
+}
+
+function cloneReceipt<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function buildReceiptForIdVerification(receipt: TrustReceipt): Record<string, any> {
+  const receiptBase = cloneReceipt(receipt) as Record<string, any>;
+  delete receiptBase.signature;
+  delete receiptBase.id;
+  if (receiptBase.chain) {
+    receiptBase.chain = {
+      ...receiptBase.chain,
+      chain_hash: '',
+    };
+  }
+  return receiptBase;
+}
+
+export interface VerifyOptions {
+  /** Maximum age of receipt in milliseconds (default: 1 year) */
+  maxAgeMs?: number;
+  /** Maximum clock skew tolerance in milliseconds (default: 5 minutes) */
+  maxFutureMs?: number;
+}
+
+const DEFAULT_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_FUTURE_MS = 5 * 60 * 1000;
 
 /**
  * Verify a SONATE trust receipt
  *
  * @param receipt - The trust receipt to verify
  * @param publicKey - The SONATE public key (hex string)
+ * @param options - Optional verification parameters
  * @returns Verification result with detailed checks
  */
 export async function verify(
   receipt: TrustReceipt,
-  publicKey: string
+  publicKey: string,
+  options?: VerifyOptions
 ): Promise<VerificationResult> {
   const result: VerificationResult = {
     valid: false,
     checks: {
       structure: { passed: false, message: '' },
       signature: { passed: false, message: '' },
+      hash: { passed: false, message: '' },
       chain: { passed: false, message: '' },
       timestamp: { passed: false, message: '' },
     },
@@ -248,7 +303,8 @@ export async function verify(
       result.errors.push(result.checks.structure.message);
 
       if (receipt.self_hash && !receipt.id) {
-        result.checks.structure.message = 'This receipt uses V1 format (self_hash). V2 format with "id" field is required.';
+        result.checks.structure.message =
+          'This receipt uses V1 format (self_hash). V2 format with "id" field is required.';
         result.errors.push(result.checks.structure.message);
       }
     } else {
@@ -256,32 +312,59 @@ export async function verify(
       result.checks.structure.message = 'Valid V2 receipt structure';
     }
 
-    // 2. Signature verification - sign over canonical receipt content (without signature)
+    // 2. Receipt ID verification - hash canonical receipt base without signature or id
+    if (receiptId) {
+      const canonicalForId = canonicalize(buildReceiptForIdVerification(receipt));
+      const computedReceiptId = await sha256(canonicalForId);
+      const hashValid = computedReceiptId === receiptId;
+
+      result.checks.hash.passed = hashValid;
+      result.checks.hash.message = hashValid
+        ? 'Receipt hash matches canonical payload'
+        : 'Receipt hash does not match canonical payload';
+
+      if (!hashValid) {
+        result.errors.push('Receipt hash verification failed');
+      }
+    } else {
+      result.checks.hash.message = 'No receipt id provided';
+      result.errors.push(result.checks.hash.message);
+    }
+
+    // 3. Signature verification - sign over canonical receipt content (without signature)
     const signatureValue = receipt.signature?.value;
 
     if (signatureValue && publicKey) {
-      const { signature: _sig, ...receiptWithoutSig } = receipt;
-      const canonical = canonicalize(receiptWithoutSig);
-      const messageBytes = new TextEncoder().encode(canonical);
-      const signatureBytes = hexToBytes(signatureValue);
-      const publicKeyBytes = hexToBytes(publicKey);
+      try {
+        const { signature: _sig, ...receiptWithoutSig } = receipt;
+        const canonical = canonicalize(receiptWithoutSig);
+        const messageBytes = new TextEncoder().encode(canonical);
+        const signatureBytes = hexToBytes(signatureValue);
+        const publicKeyBytes = hexToBytes(publicKey);
 
-      const isValid = await verifyEd25519(messageBytes, signatureBytes, publicKeyBytes);
+        const isValid = await verifyEd25519(messageBytes, signatureBytes, publicKeyBytes);
 
-      result.checks.signature.passed = isValid;
-      result.checks.signature.message = isValid
-        ? 'Ed25519 signature verified'
-        : 'Signature verification failed - content may have been tampered';
+        result.checks.signature.passed = isValid;
+        result.checks.signature.message = isValid
+          ? 'Ed25519 signature verified'
+          : 'Signature verification failed - content may have been tampered';
 
-      if (!isValid) {
-        result.errors.push('Signature verification failed');
+        if (!isValid) {
+          result.errors.push('Signature verification failed');
+        }
+      } catch {
+        // Malformed signature or public-key hex encoding — fail this check but
+        // let the remaining checks (chain, timestamp) still run and report.
+        result.checks.signature.passed = false;
+        result.checks.signature.message = 'Malformed signature or public-key encoding';
+        result.errors.push('Signature verification failed: invalid hex encoding');
       }
     } else {
       result.checks.signature.message = 'No signature or public key provided';
       result.errors.push(result.checks.signature.message);
     }
 
-    // 3. Chain hash verification
+    // 4. Chain hash verification
     if (receipt.chain?.chain_hash && receipt.chain?.previous_hash) {
       // Reconstruct: canonicalize(receipt without sig, with empty chain_hash) + previous_hash
       const { signature: _sig, ...receiptWithoutSig } = receipt;
@@ -331,21 +414,25 @@ export async function verify(
       result.checks.chain.message = 'Chain verification skipped (no chain data)';
     }
 
-    // 4. Timestamp validation
+    // 5. Timestamp validation
     const timestamp = receipt.timestamp;
     if (timestamp) {
       const receiptTime = new Date(timestamp);
       const now = new Date();
-      const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-      const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+      const maxAge = options?.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
+      const maxFuture = options?.maxFutureMs ?? DEFAULT_MAX_FUTURE_MS;
+      const cutoff = new Date(now.getTime() - maxAge);
+      const fiveMinutesFromNow = new Date(now.getTime() + maxFuture);
 
       if (receiptTime > fiveMinutesFromNow) {
         result.checks.timestamp.passed = false;
         result.checks.timestamp.message = 'Timestamp is in the future';
         result.errors.push(result.checks.timestamp.message);
-      } else if (receiptTime < oneYearAgo) {
+      } else if (receiptTime < cutoff) {
         result.checks.timestamp.passed = false;
-        result.checks.timestamp.message = 'Timestamp is older than 1 year';
+        result.checks.timestamp.message = `Timestamp is older than max age (${Math.round(
+          maxAge / (24 * 60 * 60 * 1000)
+        )} days)`;
         result.errors.push(result.checks.timestamp.message);
       } else {
         result.checks.timestamp.passed = true;
@@ -370,10 +457,10 @@ export async function verify(
     // Overall validity
     result.valid =
       result.checks.structure.passed &&
+      result.checks.hash.passed &&
       result.checks.signature.passed &&
       result.checks.chain.passed &&
       result.checks.timestamp.passed;
-
   } catch (error) {
     result.errors.push(`Verification error: ${error}`);
   }
@@ -386,9 +473,10 @@ export async function verify(
  */
 export async function quickVerify(
   receipt: TrustReceipt,
-  publicKey: string
+  publicKey: string,
+  options?: VerifyOptions
 ): Promise<boolean> {
-  const result = await verify(receipt, publicKey);
+  const result = await verify(receipt, publicKey, options);
   return result.valid;
 }
 
@@ -397,21 +485,20 @@ export async function quickVerify(
  */
 export async function verifyBatch(
   receipts: TrustReceipt[],
-  publicKey: string
+  publicKey: string,
+  options?: VerifyOptions
 ): Promise<{
   total: number;
   valid: number;
   invalid: number;
   results: VerificationResult[];
 }> {
-  const results = await Promise.all(
-    receipts.map(receipt => verify(receipt, publicKey))
-  );
+  const results = await Promise.all(receipts.map((receipt) => verify(receipt, publicKey, options)));
 
   return {
     total: receipts.length,
-    valid: results.filter(r => r.valid).length,
-    invalid: results.filter(r => !r.valid).length,
+    valid: results.filter((r) => r.valid).length,
+    invalid: results.filter((r) => !r.valid).length,
     results,
   };
 }
@@ -429,14 +516,11 @@ export function calculateTrustScore(ciqMetrics: {
 }
 
 /**
- * Check if a receipt is from a trusted issuer
+ * Check if a receipt was issued by a trusted agent
  */
 export function isTrustedIssuer(receipt: TrustReceipt, trustedIssuers: string[]): boolean {
-  const issuer = (receipt as any).issuer;
-  if (!issuer) return false;
+  const agentDid = receipt.agent_did;
+  if (!agentDid) return false;
 
-  const issuerId = typeof issuer === 'string' ? issuer : issuer.id;
-  return trustedIssuers.some(trusted =>
-    issuerId === trusted || issuerId.startsWith(trusted)
-  );
+  return trustedIssuers.some((trusted) => agentDid === trusted || agentDid.startsWith(trusted));
 }

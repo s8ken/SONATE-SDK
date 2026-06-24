@@ -1,6 +1,6 @@
 {
   "name": "@sonate/verify-sdk",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Client-side SDK for verifying SONATE trust receipts",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -14,14 +14,17 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "test": "vitest run",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "prepublishOnly": "vitest run && tsup src/index.ts --format cjs,esm --dts"
   },
   "keywords": [
+    "yseeku",
     "sonate",
     "trust",
     "verification",
@@ -29,11 +32,11 @@
     "receipts",
     "ai-safety"
   ],
-  "author": "SONATE",
+  "author": "YSEEKU",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/s8ken/SONATE-SDK.git",
+    "url": "git+https://github.com/s8ken/SONATE-SDK.git",
     "directory": "packages/verify-sdk"
   },
   "bugs": {
@@ -46,7 +49,8 @@
     "vitest": "^4.0.0"
   },
   "dependencies": {
-    "@noble/ed25519": "^3.0.0"
+    "@noble/ed25519": "^3.0.0",
+    "json-canonicalize": "^1.2.0"
   },
   "engines": {
     "node": ">=18.0.0"
