@@ -1,6 +1,6 @@
 {
   "name": "@sonate/verify-sdk",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Client-side SDK for verifying SONATE trust receipts",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -10,7 +10,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",

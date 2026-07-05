@@ -78,7 +78,7 @@ const key = await fetchPublicKey('https://your-server.com/api/public-key');
 
 ### `canonicalize(obj)`
 
-Deterministic JSON serialization. Useful for building custom verification flows.
+Deterministic JSON serialization via **RFC 8785 (JSON Canonicalization Scheme)** — it delegates to the [`json-canonicalize`](https://www.npmjs.com/package/json-canonicalize) library, with `undefined` values stripped first. This is the exact canonical form SONATE platform receipts are signed and chained over, so the verifier reproduces it byte-for-byte.
 
 ```typescript
 import { canonicalize } from '@sonate/verify-sdk';
@@ -86,6 +86,8 @@ import { canonicalize } from '@sonate/verify-sdk';
 const canonical = canonicalize({ b: 2, a: 1 });
 // '{"a":1,"b":2}'
 ```
+
+> **Note:** The SDK, the platform receipt generator, and `@sonate/trust-receipts` all canonicalize the same way (RFC 8785), so a receipt produced by any of them verifies here without a canonicalization mismatch.
 
 ## Verification Checks
 
@@ -146,6 +148,32 @@ interface TrustReceipt {
   };
 }
 ```
+
+## FAQ
+
+### What is a Trust Receipt?
+
+A cryptographically signed, hash-chained record of an AI interaction. It proves a canonical representation of the payload, the governance result, chain linkage to prior receipts, and the signer identity. Anyone can verify a receipt independently with this SDK — no vendor trust required.
+
+### How is this different from logs?
+
+Logs are mutable, vendor-controlled, and not independently verifiable. A Trust Receipt is signed with Ed25519, canonicalized deterministically, and chained to prior receipts so tampering with any field causes verification to fail. Logs describe what was said. Receipts prove it.
+
+### Can I verify a receipt without using the SONATE platform?
+
+Yes — that's the point. This SDK is MIT licensed and runs verification entirely client-side (zero backend calls). If you needed our servers to confirm a receipt, it would just be another log. You supply the receipt and a public key; verification is local.
+
+### Does verifying a receipt prove the AI's trust score is correct?
+
+No. Verification proves the receipt is **authentic and untampered** (signature, hash, chain, timestamp). The trust/telemetry scores are read from the signed payload as issued — this SDK does not re-run the governance kernel or re-derive scores. Independent re-computation of the decision is a separate, server-side capability.
+
+### What is the relationship between SYMBI and SONATE?
+
+SONATE is the production trust infrastructure — signed receipts, governance, audit evidence. SYMBI is the experimental access and participation layer that explores public-facing interaction with the system. The two are intentionally separate. SONATE is monetised via SaaS; SYMBI is not a financial product.
+
+### What is open and what is proprietary?
+
+The Trust Receipt schema is open and this verify SDK is MIT licensed. The SONATE platform — orchestration, detection, scoring kernel, dashboards, hosted services — is proprietary to Yseeku Pty Ltd. Independent verification stays open by design.
 
 ## Related Packages
 
