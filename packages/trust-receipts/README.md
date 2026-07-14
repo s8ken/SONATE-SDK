@@ -19,7 +19,7 @@ Trust Receipts work like SSL certificates for AI interactions:
 
 - **Authentication**: Ed25519 signatures prove who generated the receipt
 - **Integrity**: SHA-256 hashes of prompt and response detect tampering
-- **Non-repudiation**: Hash chains create immutable audit trails
+- **Non-repudiation**: Hash chains create tamper-evident audit trails — any modification causes verification to fail
 
 ## Install
 
@@ -108,7 +108,7 @@ console.log('Public Key:', publicKey);   // Share for verification
 
 ## Hash Chaining
 
-Link receipts for an immutable audit trail:
+Link receipts for a tamper-evident audit trail:
 
 ```typescript
 const { receipt: r1 } = await receipts.wrap(call1, { sessionId: 's1', input: q1 });
