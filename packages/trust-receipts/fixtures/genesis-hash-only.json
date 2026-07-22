@@ -1,0 +1,37 @@
+{
+  "description": "First receipt in a chain (GENESIS), hashes only, CIQ scores.",
+  "public_key": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+  "receipt": {
+    "version": "2.2.0",
+    "timestamp": "2026-01-01T00:00:00.000Z",
+    "session_id": "fixture-session-001",
+    "agent_did": "did:sonate:gpt-4",
+    "human_did": "did:sonate:anonymous",
+    "mode": "constitutional",
+    "interaction": {
+      "prompt_hash": "115049a298532be2f181edb03f766770c0db84c22aff39003fec340deaec7545",
+      "response_hash": "a1b7eb2ee7a6aded8dda4e6cf30826f5afffb28a5597ee9389e91eb326d4e319",
+      "model": "gpt-4",
+      "provider": "openai"
+    },
+    "telemetry": {
+      "ciq_metrics": {
+        "clarity": 0.95,
+        "integrity": 0.9,
+        "quality": 0.92
+      }
+    },
+    "chain": {
+      "previous_hash": "GENESIS",
+      "chain_hash": "4147fd708d57a4c480aaa46e4fbf19526fe31cd7ed68d79cd3bf55de3f7d16a5",
+      "chain_length": 1
+    },
+    "id": "4e25e38ea20588a9c49de09cfd9bc73fc577e926848faac7f6810ddd8aea783c",
+    "signature": {
+      "algorithm": "Ed25519",
+      "value": "3aba9cf00ef2ce8d0e42a579554c94f95ef6b4612e78c0bc879d0a738b16a3e972eac16414aa059c5ed4c2c37d3b54e670adcbaf58ce380d0b6b6c8c407e930e",
+      "key_version": "key_v1",
+      "timestamp_signed": "2026-01-01T00:00:00.000Z"
+    }
+  }
+}

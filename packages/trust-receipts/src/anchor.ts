@@ -10,10 +10,10 @@
  * import { anchor, verifyAnchor } from '@sonate/trust-receipts/anchor';
  *
  * const { receipt } = await receipts.wrap(...);
- * const proof = await anchor(receipt.receiptHash);
+ * const proof = await anchor(receipt.id);
  *
  * // Later, verify the anchor
- * const verified = await verifyAnchor(receipt.receiptHash, proof);
+ * const verified = await verifyAnchor(receipt.id, proof);
  * ```
  */
 

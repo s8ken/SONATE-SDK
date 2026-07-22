@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "node16",
+    "moduleResolution": "node16",
     "lib": ["ES2020"],
     "declaration": true,
     "declarationMap": true,
@@ -12,9 +13,15 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "moduleResolution": "node"
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "scripts",
+    "fixtures",
+    "src/**/*.test.ts",
+    "src/tests"
+  ]
 }

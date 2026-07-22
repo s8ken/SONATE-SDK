@@ -6,8 +6,9 @@
 
 **Advanced local and self-managed receipt tooling for teams that want to sign and chain receipts outside the hosted SONATE platform.**
 
-If you want the default SONATE integration path, use [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) instead.
-That package sends interactions to SONATE, returns constitutional scores and kernel verdicts, and gives you a signed verification URL back immediately.
+As of **v3.0.0**, this package produces **SONATE v2.2.0 receipts** that verify successfully with [`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk). Receipts you sign locally are now cryptographically interoperable with the official verifier and the hosted platform. See [Migrating from 2.x](#migrating-from-2x) if you are upgrading.
+
+If you want the default SONATE integration path, use [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) instead. That package sends interactions to SONATE, returns constitutional scores and kernel verdicts, and gives you a signed verification URL back immediately.
 
 ## The Problem
 
@@ -43,7 +44,7 @@ import { TrustReceipts } from '@sonate/trust-receipts';
 import OpenAI from 'openai';
 
 const receipts = new TrustReceipts({
-  privateKey: process.env.SONATE_PRIVATE_KEY,
+  privateKey: process.env.SONATE_PRIVATE_KEY, // 32-byte Ed25519 seed (hex)
 });
 
 const openai = new OpenAI();
@@ -51,58 +52,113 @@ const messages = [{ role: 'user', content: 'Explain quantum computing.' }];
 
 const { response, receipt } = await receipts.wrap(
   () => openai.chat.completions.create({ model: 'gpt-4', messages }),
-  { sessionId: 'user-123', input: messages }
+  { sessionId: 'user-123', input: messages, provider: 'openai' }
 );
 
 console.log(response.choices[0].message.content);
-console.log('Receipt:', receipt.receiptHash);
+console.log('Receipt id:', receipt.id);
+console.log('Signature:', receipt.signature.value);
 ```
 
-## What Gets Hashed?
+## Verify with @sonate/verify-sdk (round-trip)
 
-Before signing, the SDK canonicalizes and hashes this payload using [RFC 8785 JSON Canonicalization](https://datatracker.ietf.org/doc/html/rfc8785):
-
-```json
-{
-  "version": "1.0",
-  "timestamp": "2026-02-18T01:29:00.000Z",
-  "sessionId": "user-123",
-  "agentId": "gpt-4",
-  "promptHash": "sha256:a1b2c3...",
-  "responseHash": "sha256:d4e5f6...",
-  "scores": { "clarity": 0.92, "accuracy": 0.88 },
-  "prevReceiptHash": "sha256:789abc...",
-  "metadata": {}
-}
-```
-
-The `promptHash` and `responseHash` are SHA-256 hashes of the canonicalized prompt/response content. The entire payload is then hashed to produce `receiptHash`, which is signed with Ed25519.
-
-## Receipt Structure
+Every receipt produced by this SDK verifies with the official verifier:
 
 ```typescript
-interface SignedReceipt {
-  version: string;           // Schema version ("1.0")
-  timestamp: string;         // ISO 8601 UTC timestamp
-  sessionId: string;         // Your session identifier
-  agentId: string | null;    // AI model/agent identifier
-  promptHash: string;        // SHA-256 of canonicalized input
-  responseHash: string;      // SHA-256 of AI response content
-  scores: Record<string, number>;  // User-defined attestation scores (0-1)
-  prevReceiptHash: string | null;  // Hash chain to previous receipt
-  receiptHash: string;       // SHA-256 of this receipt's payload
-  signature: string;         // Ed25519 signature (hex)
-  metadata: object;          // Custom metadata
+import { TrustReceipts } from '@sonate/trust-receipts';
+import { verify } from '@sonate/verify-sdk';
+
+const receipts = new TrustReceipts();
+const publicKey = await receipts.getPublicKey(); // hex
+
+const { receipt } = await receipts.wrap(
+  async () => ({ choices: [{ message: { content: 'Paris.' } }] }),
+  { sessionId: 's1', input: 'Capital of France?', provider: 'openai' }
+);
+
+const result = await verify(receipt, publicKey);
+console.log(result.valid);            // true
+console.log(result.checks.signature); // { passed: true, ... }
+console.log(result.checks.hash);      // { passed: true, ... }  (receipt id)
+console.log(result.checks.chain);     // { passed: true, ... }
+```
+
+## Receipt Structure (SONATE v2.2.0)
+
+```typescript
+interface SonateReceipt {
+  id: string;                 // SHA-256 hex of the canonical receipt content
+  version: '2.2.0';
+  timestamp: string;          // ISO 8601 UTC
+  session_id: string;
+  agent_did: string;          // e.g. "did:sonate:gpt-4"
+  human_did: string;          // e.g. "did:sonate:anonymous"
+  policy_version?: string;
+  mode: 'constitutional' | 'directive';
+  interaction: {
+    prompt?: string;          // present only when includeContent: true
+    response?: string;        // present only when includeContent: true
+    prompt_hash: string;      // SHA-256 of the prompt
+    response_hash: string;    // SHA-256 of the response
+    model: string;
+    provider?: string;
+  };
+  telemetry?: {
+    ciq_metrics?: { clarity?: number; integrity?: number; quality?: number };
+    custom_scores?: Record<string, number>;
+    // ...any additional telemetry fields you pass through
+  };
+  chain: {
+    previous_hash: string;    // 'GENESIS' for the first receipt
+    chain_hash: string;
+    chain_length?: number;
+  };
+  signature: {
+    algorithm: 'Ed25519';
+    value: string;            // hex signature
+    key_version: string;
+    timestamp_signed?: string; // set to the receipt timestamp (metadata outside the signed bytes)
+  };
+  metadata?: Record<string, unknown>;
 }
 ```
+
+### How the receipt is built (cryptographic contract)
+
+Canonicalization uses [RFC 8785](https://datatracker.ietf.org/doc/html/rfc8785) (`json-canonicalize`) with `undefined` values stripped first — byte-for-byte identical to `@sonate/verify-sdk`. Construction order:
+
+1. **Build the base** receipt (no `id`, `chain.chain_hash = ''`, no `signature`).
+2. **`id`** = `sha256hex(canonical(receipt without signature, without id, chain_hash=''))`.
+3. **`chain.chain_hash`** = `sha256hex(canonical(receipt without signature, chain_hash='', with id) + previous_hash)`.
+4. **`signature.value`** = Ed25519 over the utf-8 bytes of `canonical(receipt without signature)` — with the real `id` and `chain_hash` present.
+
+> **Security — the `signature` block is unsigned metadata.** The entire `signature` object is stripped before the id/chain/signature hashes are computed (matching the SONATE platform reference), so `signature.key_version` and `signature.timestamp_signed` are **not** covered by the signature and must not be trusted. In particular, **never select the verification public key from receipt contents** — always obtain the public key from a trusted external source (a pinned key, a `.well-known` endpoint, or a DID document). `verify()` requires you to pass that key in for exactly this reason.
+
+## Developer inputs map onto the wire format
+
+The developer-facing API stays ergonomic; legacy camelCase inputs are mapped onto v2.2.0:
+
+| Input (`TrustReceiptData` / `WrapOptions`) | Receipt field |
+|---|---|
+| `sessionId` | `session_id` |
+| `agentId` (string) | `agent_did` (prefixed `did:sonate:` if not already a DID) + `interaction.model` |
+| `agentDid` | `agent_did` (verbatim) |
+| `humanId` / `humanDid` | `human_did` (default `did:sonate:anonymous`) |
+| `model` / `provider` | `interaction.model` / `interaction.provider` |
+| `mode` | `mode` (default `constitutional`) |
+| `scores.{clarity,integrity,quality}` | `telemetry.ciq_metrics` |
+| other `scores` keys | `telemetry.custom_scores` |
+| `prevReceiptHash` / `previousReceipt` | `chain.previous_hash` |
+| `includeContent: true` | `interaction.prompt` + `interaction.response` (plus hashes) |
+| `metadata` | `metadata` |
 
 ## Key Generation
 
 ```typescript
-// Generate a new key pair
+// Generate a new key pair (hex strings)
 const { privateKey, publicKey } = await TrustReceipts.generateKeyPair();
 
-console.log('Private Key:', privateKey); // Store securely!
+console.log('Private Key:', privateKey); // 32-byte Ed25519 seed — store securely!
 console.log('Public Key:', publicKey);   // Share for verification
 ```
 
@@ -115,97 +171,61 @@ const { receipt: r1 } = await receipts.wrap(call1, { sessionId: 's1', input: q1 
 const { receipt: r2 } = await receipts.wrap(call2, {
   sessionId: 's1',
   input: q2,
-  previousReceipt: r1  // Chain to previous
+  previousReceipt: r1, // chains r2.chain.previous_hash to r1.chain.chain_hash
 });
 
-// r2.prevReceiptHash === r1.receiptHash
+// r2.chain.previous_hash === r1.chain.chain_hash
 ```
 
 ## Verification
 
 ```typescript
-// Verify single receipt
+// Verify a single receipt (signature + id + chain integrity)
 const valid = await receipts.verifyReceipt(receipt, publicKey);
 
-// Verify entire chain
+// Verify an entire chain (signatures + linkage)
 const result = await receipts.verifyChain([r1, r2, r3], publicKey);
-console.log(result.valid);   // true if all signatures and chains valid
+console.log(result.valid);   // true if all signatures and links valid
 console.log(result.errors);  // Array of any errors found
-```
-
-## Bitcoin Anchoring (OpenTimestamps)
-
-For stronger timestamp guarantees, anchor receipt hashes to Bitcoin:
-
-```typescript
-import { TrustReceipts, anchor, upgradeAnchor } from '@sonate/trust-receipts';
-
-const { receipt } = await receipts.wrap(aiCall, { sessionId: 's1', input });
-
-// Submit to OpenTimestamps calendar servers
-const proof = await anchor(receipt.receiptHash);
-console.log('Anchored to calendars:', proof.calendars);
-console.log('Status:', proof.status); // 'pending' initially
-
-// Store the proof with your receipt
-await saveToDatabase({ receipt, anchorProof: proof });
-
-// Later (after ~1-2 hours), upgrade to get Bitcoin confirmation
-const upgraded = await upgradeAnchor(proof);
-if (upgraded.status === 'confirmed') {
-  console.log('Confirmed in Bitcoin block:', upgraded.bitcoinBlock);
-}
-```
-
-**How it works:**
-1. Your `receiptHash` is submitted to OpenTimestamps calendar servers
-2. Calendars aggregate hashes into a Merkle tree
-3. The Merkle root is committed to Bitcoin (~hourly)
-4. Your proof can be independently verified against the blockchain
-
-**Chain anchoring:** Since receipts are hash-chained, anchoring the final receipt transitively anchors the entire conversation:
-
-```typescript
-import { anchorChain } from '@sonate/trust-receipts';
-
-// Anchor entire conversation with one proof
-const chainProof = await anchorChain([r1.receiptHash, r2.receiptHash, r3.receiptHash]);
 ```
 
 ## Scores & Attestation
 
-Scores are **user-defined attestation values** — the SDK does not compute them. You define your own rubric and the SDK cryptographically signs whatever scores you provide.
-
-Each score is a float between 0 and 1 keyed by a name you choose:
+Scores are **user-defined attestation values** — the SDK does not compute them. `clarity`, `integrity`, and `quality` are mapped to `telemetry.ciq_metrics` (which `@sonate/verify-sdk` uses to compute a trust score); any other keys are preserved under `telemetry.custom_scores`.
 
 ```typescript
 const { receipt } = await receipts.wrap(aiCall, {
   sessionId: 'session-1',
   input: messages,
   scores: {
-    clarity: 0.95,      // Your clarity rubric
-    accuracy: 0.88,     // Your accuracy rubric
-    safety: 0.99,       // Your safety rubric
-    compliance: 0.92,   // Your compliance rubric
+    clarity: 0.95,     // -> telemetry.ciq_metrics.clarity
+    integrity: 0.9,    // -> telemetry.ciq_metrics.integrity
+    quality: 0.88,     // -> telemetry.ciq_metrics.quality
+    safety: 0.99,      // -> telemetry.custom_scores.safety
   },
 });
 ```
 
-Common score patterns:
-- **Quality**: `{ clarity, coherence, relevance }` — language quality metrics
-- **Safety**: `{ safety, toxicity, bias }` — content safety metrics
-- **Compliance**: `{ pii_check, policy_adherence, audit_score }` — regulatory metrics
+For computed scores, provide a `calculateScores` function on the constructor.
 
-For computed scores, provide a `calculateScores` function:
+## Privacy
+
+By default, only SHA-256 hashes of prompt and response are included (`interaction.prompt_hash` / `interaction.response_hash`). Original content is never stored unless you opt in with `includeContent: true`, which additionally populates `interaction.prompt` and `interaction.response`.
 
 ```typescript
-const receipts = new TrustReceipts({
-  privateKey: process.env.SONATE_PRIVATE_KEY,
-  calculateScores: (prompt, response) => ({
-    wordCount: Math.min(String(response).length / 1000, 1),
-    hasCodeBlock: String(response).includes('```') ? 1 : 0,
-  }),
+// Default: hashes only (privacy-preserving)
+const { receipt } = await receipts.wrap(aiCall, { sessionId: 's1', input: messages });
+// receipt.interaction.prompt_hash = "a1b2c3..."
+// receipt.interaction.prompt      = undefined
+
+// Opt-in: include full content
+const { receipt: full } = await receipts.wrap(aiCall, {
+  sessionId: 's1',
+  input: messages,
+  includeContent: true,
 });
+// full.interaction.prompt   = "..."
+// full.interaction.response = "..."
 ```
 
 ## Streaming Support
@@ -214,176 +234,84 @@ For streaming responses, create receipts manually after accumulating the respons
 
 ```typescript
 let fullResponse = '';
-const stream = anthropic.messages.stream({ ... });
-
-for await (const event of stream) {
-  fullResponse += event.text;
-}
+for await (const event of stream) fullResponse += event.text;
 
 const receipt = await receipts.createReceipt({
   sessionId: 'stream-session',
   prompt: messages,
   response: fullResponse,
+  provider: 'anthropic',
   previousReceipt: lastReceipt,
   scores: { completeness: 0.95 },
 });
 ```
 
-## Privacy
+## Bitcoin Anchoring (OpenTimestamps)
 
-By default, only SHA-256 hashes of prompt and response are included in receipts. The original content is never stored unless you explicitly opt in.
-
-**Hash-only (default):** Proves integrity without exposing sensitive data. Third parties can verify that content hasn't been tampered with by comparing hashes, but cannot reconstruct the original content.
-
-**Full content (opt-in):** Set `includeContent: true` for use cases like internal audit logs where you need the complete interaction record:
+For stronger timestamp guarantees, anchor the receipt `id` to Bitcoin:
 
 ```typescript
-// Default: hashes only (privacy-preserving)
-const { receipt } = await receipts.wrap(aiCall, {
-  sessionId: 's1',
-  input: messages,
-});
-// receipt.promptHash = "a1b2c3..."
-// receipt.promptContent = undefined
+import { TrustReceipts, anchor, upgradeAnchor } from '@sonate/trust-receipts';
 
-// Opt-in: include full content
-const { receipt: fullReceipt } = await receipts.wrap(aiCall, {
-  sessionId: 's1',
-  input: messages,
-  includeContent: true,
-});
-// fullReceipt.promptHash = "a1b2c3..."
-// fullReceipt.promptContent = [{ role: "user", content: "..." }]
-// fullReceipt.responseContent = "The AI response text..."
+const { receipt } = await receipts.wrap(aiCall, { sessionId: 's1', input });
+
+const proof = await anchor(receipt.id);           // submit to calendar servers
+const upgraded = await upgradeAnchor(proof);      // later: check Bitcoin confirmation
 ```
 
-## Anthropic Example
+Since receipts are hash-chained, anchoring the final receipt transitively anchors the whole conversation via `anchorChain([...ids])`.
 
-```typescript
-import Anthropic from '@anthropic-ai/sdk';
-import { TrustReceipts } from '@sonate/trust-receipts';
+## Golden fixtures & cross-language conformance
 
-const anthropic = new Anthropic();
-const receipts = new TrustReceipts({
-  privateKey: process.env.SONATE_PRIVATE_KEY,
-  defaultAgentId: 'claude-3-sonnet',
-});
+Deterministic golden receipts (fixed key seed, fixed timestamps, fixed content) live in [`fixtures/`](./fixtures) and are regenerated with:
 
-const messages = [{ role: 'user', content: 'Explain trust receipts.' }];
-
-const { response, receipt } = await receipts.wrap(
-  () => anthropic.messages.create({
-    model: 'claude-3-sonnet-20240229',
-    max_tokens: 1024,
-    messages,
-  }),
-  { sessionId: 'claude-session', input: messages }
-);
+```bash
+npm run generate:fixtures --workspace=@sonate/trust-receipts
 ```
+
+Each fixture is verified by `@sonate/verify-sdk` in this package's test suite, and the same bytes are verified by the Python SDK for true cross-language conformance.
+
+## Migrating from 2.x
+
+v3.0.0 is a **breaking format change**: receipts are now SONATE **v2.2.0** instead of the legacy `1.0` camelCase format.
+
+**Receipt shape changed** (snake_case, DID identities, structured `interaction`/`chain`/`signature`):
+
+| 2.x field | 3.0 field |
+|---|---|
+| `receipt.receiptHash` | `receipt.id` |
+| `receipt.sessionId` | `receipt.session_id` |
+| `receipt.agentId` | `receipt.agent_did` (a DID) + `receipt.interaction.model` |
+| `receipt.promptHash` / `responseHash` | `receipt.interaction.prompt_hash` / `response_hash` |
+| `receipt.scores` | `receipt.telemetry.ciq_metrics` / `telemetry.custom_scores` |
+| `receipt.prevReceiptHash` | `receipt.chain.previous_hash` |
+| `receipt.signature` (string) | `receipt.signature.value` (hex) inside a signature object |
+| `receipt.version === '1.0'` | `receipt.version === '2.2.0'` |
+
+**What did *not* change** — the developer-facing API is preserved: `new TrustReceipts({...})`, `wrap()`, `createReceipt()`, `verifyReceipt()`, `verifyChain()`, `TrustReceipt`, `TrustReceipt.fromJSON()`, key generation, and the `anchor` / `upgradeAnchor` / `verifyAnchor` / `anchorChain` exports all keep the same call signatures. You mostly need to update code that reads receipt fields.
+
+**Signing input changed**: 2.x signed the receipt hash bytes; 3.0 signs the utf-8 bytes of the canonical receipt (matching `@sonate/verify-sdk`). Receipts signed by 2.x will **not** verify under 3.0 and vice versa — re-issue receipts you need to keep verifiable.
+
+**New optional inputs**: `provider`, `model`, `mode`, `humanId` / `humanDid`, `agentDid`, `policyVersion`, and a `timestamp` override for deterministic fixtures.
 
 ## Cryptographic Details
 
 | Component | Specification |
 |-----------|--------------|
-| Signing | Ed25519 (RFC 8032) |
+| Receipt format | SONATE v2.2.0 |
+| Signing | Ed25519 (RFC 8032) over canonical receipt bytes |
 | Hashing | SHA-256 |
-| Canonicalization | JSON Canonicalization Scheme (RFC 8785) |
-| Key Size | 32 bytes (256 bits) |
-| Signature Size | 64 bytes (512 bits) |
+| Canonicalization | JSON Canonicalization Scheme (RFC 8785), `undefined` stripped |
+| Key Size | 32 bytes (256-bit Ed25519 seed) |
+| Signature Size | 64 bytes (hex-encoded) |
 | Timestamp | ISO 8601 UTC |
 | Anchoring | OpenTimestamps (Bitcoin) |
-
-## Public Key Discovery
-
-For production deployments, publish your public key at a well-known location:
-
-```
-https://yourdomain.com/.well-known/sonate-keys.json
-```
-
-Example format:
-
-```json
-{
-  "keys": [{
-    "id": "default",
-    "publicKey": "abc123def456...",
-    "algorithm": "Ed25519",
-    "created": "2026-02-18T00:00:00Z"
-  }]
-}
-```
-
-This allows third parties to verify your receipts without out-of-band key exchange.
-
-## Timestamp Guarantees
-
-Receipts include three layers of temporal proof:
-
-| Layer | Guarantee | Trust Model |
-|-------|-----------|-------------|
-| `timestamp` | ISO 8601 UTC timestamp | Self-reported (system clock) |
-| Hash chain | Ordering proof — receipt N+1 references receipt N | Cryptographic (SHA-256) |
-| `anchor()` | Bitcoin-backed proof of existence | Decentralized (OpenTimestamps) |
-
-**Self-reported timestamps** are sufficient for most audit trails. Hash chaining ensures ordering cannot be forged even if individual timestamps are approximate.
-
-**For stronger non-repudiation**, use `anchor()` to submit receipt hashes to OpenTimestamps calendar servers, which commit them to Bitcoin (~hourly). This provides blockchain-backed proof that a receipt existed at a specific time:
-
-```typescript
-import { anchor } from '@sonate/trust-receipts';
-
-const proof = await anchor(receipt.receiptHash);
-// proof.status = 'pending' → 'confirmed' after Bitcoin block
-```
-
-## Known Limitations & Roadmap
-
-### Large Payloads
-
-**Current:** Full prompt/response content is hashed. SHA-256 is fast (~5ms for 1MB), but very large payloads may add latency.
-
-**Mitigation:** Use `extractResponse` option to hash only relevant fields, or store content externally with `receiptHash` as reference.
-
-```typescript
-const { receipt } = await receipts.wrap(fn, {
-  sessionId: 's1',
-  input: messages,
-  extractResponse: (r) => r.choices[0].message.content, // Hash only the text
-});
-```
-
-### Key Management
-
-**Current:** Keys are provided by the caller. No built-in key rotation or HSM support.
-
-**Roadmap:** Key rotation helpers, HSM/KMS integration guides.
-
-## Use Cases
-
-- **Compliance**: Audit trails for regulated industries (healthcare, finance)
-- **Debugging**: Trace issues through conversation history
-- **Analytics**: Track quality metrics over time
-- **Security**: Detect prompt injection or response tampering
-- **Accountability**: Prove what was said and when
 
 ## Related Packages
 
 - **[`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk)** — Official platform SDK for evaluating interactions and receiving signed receipts
-- **[`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk)** — Local cryptographic verification
+- **[`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk)** — Local cryptographic verification (the normative verifier for this format)
 - **[`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas)** — JSON Schema + TypeScript types for Trust Receipts
-
-## Positioning
-
-`@sonate/trust-receipts` is not the default SaaS integration path.
-
-It exists for advanced teams that want:
-- local signing
-- custom attestation scores
-- self-managed chains
-- private or hybrid audit flows
-
-If you want SONATE's hosted governance engine, constitutional scoring, kernel enforcement, and public verification flow, start with `@sonate/sdk`.
 
 ## License
 

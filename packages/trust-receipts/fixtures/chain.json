@@ -1,0 +1,105 @@
+{
+  "description": "Deterministic 3-receipt hash chain (GENESIS -> 2 -> 3).",
+  "public_key": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+  "receipts": [
+    {
+      "version": "2.2.0",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "session_id": "fixture-chain-session",
+      "agent_did": "did:sonate:gpt-4",
+      "human_did": "did:sonate:anonymous",
+      "mode": "constitutional",
+      "interaction": {
+        "prompt_hash": "6a689fe1a1723deb14c2d6e8749ade5199a5d50283992857c902818668e2cd67",
+        "response_hash": "9f18ad81d18987f7d2a787957575c335276154f99ce083e6e03a3fb3cdd654d1",
+        "model": "gpt-4",
+        "provider": "openai"
+      },
+      "telemetry": {
+        "ciq_metrics": {
+          "clarity": 0.9,
+          "integrity": 0.9,
+          "quality": 0.9
+        }
+      },
+      "chain": {
+        "previous_hash": "GENESIS",
+        "chain_hash": "07658d45f2f55198bc43075dc1713b10d18ce8e676ffe505864a63e87acabcc4",
+        "chain_length": 1
+      },
+      "id": "82077d6af4aee1038109f6568f060787e305432e5f16b151df6ff7d79a423501",
+      "signature": {
+        "algorithm": "Ed25519",
+        "value": "056cd0907e3eae546177c6a0c8337c1ea2ffe4b38728a0a8f4bbc84ea57f51a0d87435344ffd296e07f26d92ecdc08dda808d124bb3fa9814673bb4e2a5b4d0b",
+        "key_version": "key_v1",
+        "timestamp_signed": "2026-01-01T00:00:00.000Z"
+      }
+    },
+    {
+      "version": "2.2.0",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "session_id": "fixture-chain-session",
+      "agent_did": "did:sonate:gpt-4",
+      "human_did": "did:sonate:anonymous",
+      "mode": "constitutional",
+      "interaction": {
+        "prompt_hash": "2eea73f0834737b4a4d8f71898a59f6bf66338528890575638c77b3a4238d3e7",
+        "response_hash": "c9de455e242a7d181264848bfe8ece00c85848aeec3dfd80b7975c3b39fc8a7c",
+        "model": "gpt-4",
+        "provider": "openai"
+      },
+      "telemetry": {
+        "ciq_metrics": {
+          "clarity": 0.9,
+          "integrity": 0.9,
+          "quality": 0.9
+        }
+      },
+      "chain": {
+        "previous_hash": "07658d45f2f55198bc43075dc1713b10d18ce8e676ffe505864a63e87acabcc4",
+        "chain_hash": "9f019473862d25f7c2e91396cf4af100b85463652141e008ecda8ec44edf96e6",
+        "chain_length": 2
+      },
+      "id": "270b5bc8d31d664a17b4b5d4748fe3062e3b0cb251c789a9875438b58faa4da6",
+      "signature": {
+        "algorithm": "Ed25519",
+        "value": "9d3f91320099f1f223dc9133e224936e832c067918d838863aa88df631dfc9bbd793c89b0a12261a89396b51f787dabd3a9fd22fc1e0296f1790f0432226f60b",
+        "key_version": "key_v1",
+        "timestamp_signed": "2026-01-01T00:00:00.000Z"
+      }
+    },
+    {
+      "version": "2.2.0",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "session_id": "fixture-chain-session",
+      "agent_did": "did:sonate:gpt-4",
+      "human_did": "did:sonate:anonymous",
+      "mode": "constitutional",
+      "interaction": {
+        "prompt_hash": "d15a76328237f9606b677a70355e70c4886f7d8cd32c1c8d084c277cfb4bded7",
+        "response_hash": "2c80fe795af5e0ca36ebf800d28dcea33fd49c3b1f84055129c9c65ff79b90d3",
+        "model": "gpt-4",
+        "provider": "openai"
+      },
+      "telemetry": {
+        "ciq_metrics": {
+          "clarity": 0.9,
+          "integrity": 0.9,
+          "quality": 0.9
+        }
+      },
+      "chain": {
+        "previous_hash": "9f019473862d25f7c2e91396cf4af100b85463652141e008ecda8ec44edf96e6",
+        "chain_hash": "7f859dfb39dd808089a31f1b59191f631dd296f19f8947fa28d30a96caeea5d2",
+        "chain_length": 3
+      },
+      "id": "c4194bdae36aac175ab2a0a76849945576b9028af5430994e1c1ea893a3fd154",
+      "signature": {
+        "algorithm": "Ed25519",
+        "value": "c74f4fdac256dfd1f726bc0874528e64765e95baefd44a9a12b08b38154e78d7042fc10b2958f458b931081ef9becaeaa27b3aee8e01c278f84b24bda2a60409",
+        "key_version": "key_v1",
+        "timestamp_signed": "2026-01-01T00:00:00.000Z"
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "description": "Receipt with full prompt/response content included plus hashes.",
+  "public_key": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+  "receipt": {
+    "version": "2.2.0",
+    "timestamp": "2026-01-01T00:00:00.000Z",
+    "session_id": "fixture-session-002",
+    "agent_did": "did:sonate:claude-3-sonnet",
+    "human_did": "did:sonate:anonymous",
+    "policy_version": "policy_v1.2.0",
+    "mode": "directive",
+    "interaction": {
+      "prompt_hash": "75cbf53c398da5e73d657b89588519fb57956159d9f2d927dedfab3d2c5504f9",
+      "response_hash": "e104af286ccdb4286c5b729b779d25dd621cc2a559593371cb041d16d987b179",
+      "model": "claude-3-sonnet",
+      "provider": "anthropic",
+      "prompt": "Summarize the SONATE trust model in one sentence.",
+      "response": "SONATE issues cryptographically signed, hash-chained receipts for AI interactions."
+    },
+    "telemetry": {
+      "ciq_metrics": {
+        "clarity": 0.88,
+        "integrity": 0.99,
+        "quality": 0.9
+      },
+      "custom_scores": {
+        "safety": 0.97
+      }
+    },
+    "chain": {
+      "previous_hash": "GENESIS",
+      "chain_hash": "ba55aa9047794327b563a9a592c8b8e6d15c8a57df68fcde9c133cedae60dd3b",
+      "chain_length": 1
+    },
+    "metadata": {
+      "tags": [
+        "fixture",
+        "full-content"
+      ]
+    },
+    "id": "0e64efca4ec4d15414d5342490b114ff72e7fef4598d6909efae414cdb130217",
+    "signature": {
+      "algorithm": "Ed25519",
+      "value": "f295a8ec5df5cfb1176f6c2225efc8d9577d26f132d9b8a4578c054a118134d1bc843cd02a2946a077e0c9cb08a0b809c747248c2a6f23308ce787d1e6e6a20a",
+      "key_version": "key_v1",
+      "timestamp_signed": "2026-01-01T00:00:00.000Z"
+    }
+  }
+}

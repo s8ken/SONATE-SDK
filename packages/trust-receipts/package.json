@@ -1,14 +1,15 @@
 {
   "name": "@sonate/trust-receipts",
-  "version": "2.0.1",
-  "description": "SSL/TLS for AI — cryptographically sign and verify every interaction",
+  "version": "3.0.0",
+  "description": "SSL/TLS for AI — cryptographically sign and verify every interaction (SONATE v2.2.0 receipts)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "node -e \"const fs=require('fs'); try{fs.rmSync('dist',{recursive:true,force:true})}catch(e){}\"",
-    "test": "node --test dist/tests/*.test.js",
+    "test": "vitest run",
+    "generate:fixtures": "tsx scripts/generate-fixtures.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -42,8 +43,11 @@
     "json-canonicalize": "^2.0.0"
   },
   "devDependencies": {
+    "@sonate/verify-sdk": "*",
     "@types/node": "^22.0.0",
-    "typescript": "^5.0.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   },
   "peerDependencies": {
     "openai": ">=4.0.0",
@@ -72,6 +76,7 @@
   "files": [
     "dist",
     "!dist/tests",
+    "fixtures",
     "README.md"
   ],
   "engines": {

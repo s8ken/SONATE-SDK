@@ -2,22 +2,27 @@
  * TrustReceipts Wrapper - SSL for AI
  *
  * Wrap any AI API call to automatically generate cryptographic audit trails.
- * Works with OpenAI, Anthropic, or any async function.
+ * Works with OpenAI, Anthropic, Gemini, or any async function. Produces
+ * SONATE v2.2.0 receipts that verify with @sonate/verify-sdk.
  */
 
-import { TrustReceipt, TrustReceiptData, SignedReceipt, Scores } from './trust-receipt';
-import { generateKeyPair, hexToBytes, bytesToHex, getPublicKey } from './crypto';
+import { TrustReceipt, TrustReceiptData, SonateReceipt, Scores } from './trust-receipt';
+import { generateKeyPair, hexToBytes, bytesToHex, getPublicKey, assertEd25519Seed } from './crypto';
 
 /**
  * Configuration for TrustReceipts
  */
 export interface TrustReceiptsConfig {
-  /** Ed25519 private key (hex string or Uint8Array) */
+  /** Ed25519 private key (hex string or 32-byte Uint8Array) */
   privateKey?: string | Uint8Array;
   /** Ed25519 public key (hex string or Uint8Array) - derived from private if not provided */
   publicKey?: string | Uint8Array;
-  /** Default agent/model identifier */
+  /** Default agent/model identifier -> `agent_did` + `interaction.model` */
   defaultAgentId?: string;
+  /** Default human identifier -> `human_did` */
+  defaultHumanId?: string;
+  /** Key version label recorded in `signature.key_version` (default: `key_v1`) */
+  keyVersion?: string;
   /** Custom scores calculator */
   calculateScores?: (prompt: unknown, response: unknown) => Scores;
 }
@@ -30,10 +35,18 @@ export interface WrapOptions<TInput = unknown> {
   sessionId: string;
   /** The prompt/input being sent to the AI */
   input: TInput;
-  /** Agent/model identifier (overrides default) */
+  /** Agent/model identifier (overrides default) -> `agent_did` + `interaction.model` */
   agentId?: string;
+  /** Human identifier (overrides default) -> `human_did` */
+  humanId?: string;
+  /** Model identifier -> `interaction.model` (defaults to `agentId`) */
+  model?: string;
+  /** Provider -> `interaction.provider` (e.g. 'openai', 'anthropic') */
+  provider?: string;
+  /** Governance mode (default: 'constitutional') */
+  mode?: 'constitutional' | 'directive';
   /** Previous receipt for hash chaining */
-  previousReceipt?: SignedReceipt;
+  previousReceipt?: SonateReceipt;
   /** Custom metadata to include */
   metadata?: Record<string, unknown>;
   /** Attestation scores (if not using calculator) */
@@ -56,8 +69,16 @@ export interface CreateReceiptOptions {
   response: unknown;
   /** Agent/model identifier */
   agentId?: string;
+  /** Human identifier -> `human_did` */
+  humanId?: string;
+  /** Model identifier -> `interaction.model` */
+  model?: string;
+  /** Provider -> `interaction.provider` */
+  provider?: string;
+  /** Governance mode (default: 'constitutional') */
+  mode?: 'constitutional' | 'directive';
   /** Previous receipt for hash chaining */
-  previousReceipt?: SignedReceipt;
+  previousReceipt?: SonateReceipt;
   /** Custom metadata */
   metadata?: Record<string, unknown>;
   /** Attestation scores */
@@ -72,19 +93,20 @@ export interface CreateReceiptOptions {
 export interface WrappedResponse<T> {
   /** The original response from the AI call */
   response: T;
-  /** The signed trust receipt */
-  receipt: SignedReceipt;
+  /** The signed SONATE v2.2.0 trust receipt */
+  receipt: SonateReceipt;
 }
 
 /**
  * Extract text content from common AI response formats
+ * (OpenAI, Anthropic, Google Gemini).
  */
 function extractResponseContent(response: unknown): unknown {
   if (!response || typeof response !== 'object') {
     return response;
   }
 
-  const r = response as Record<string, unknown>;
+  const r = response as Record<string, any>;
 
   // OpenAI format: { choices: [{ message: { content: "..." } }] }
   if (Array.isArray(r.choices) && r.choices[0]?.message?.content) {
@@ -94,6 +116,11 @@ function extractResponseContent(response: unknown): unknown {
   // Anthropic format: { content: [{ text: "..." }] }
   if (Array.isArray(r.content) && r.content[0]?.text) {
     return r.content[0].text;
+  }
+
+  // Google Gemini format: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+  if (Array.isArray(r.candidates) && r.candidates[0]?.content?.parts?.[0]?.text) {
+    return r.candidates[0].content.parts[0].text;
   }
 
   // Fallback: return as-is
@@ -117,22 +144,26 @@ function extractResponseContent(response: unknown): unknown {
  *
  * const { response, receipt } = await receipts.wrap(
  *   () => openai.chat.completions.create({ model: 'gpt-4', messages }),
- *   { sessionId: 'user-123', input: messages }
+ *   { sessionId: 'user-123', input: messages, provider: 'openai' }
  * );
  *
  * console.log(response.choices[0].message.content);
- * console.log('Receipt hash:', receipt.receiptHash);
+ * console.log('Receipt id:', receipt.id);
  * ```
  */
 export class TrustReceipts {
   private privateKey: Uint8Array;
   private publicKey: Uint8Array;
   private defaultAgentId?: string;
+  private defaultHumanId?: string;
+  private keyVersion?: string;
   private calculateScores?: (prompt: unknown, response: unknown) => Scores;
   private initialized: Promise<void>;
 
   constructor(config: TrustReceiptsConfig = {}) {
     this.defaultAgentId = config.defaultAgentId;
+    this.defaultHumanId = config.defaultHumanId;
+    this.keyVersion = config.keyVersion;
     this.calculateScores = config.calculateScores;
 
     // Initialize keys (may be async)
@@ -147,11 +178,12 @@ export class TrustReceipts {
    */
   private async initializeKeys(config: TrustReceiptsConfig): Promise<void> {
     if (config.privateKey) {
-      // Use provided private key
+      // Use provided private key (32-byte Ed25519 seed)
       this.privateKey =
         typeof config.privateKey === 'string'
           ? hexToBytes(config.privateKey)
           : config.privateKey;
+      assertEd25519Seed(this.privateKey);
 
       // Derive or use provided public key
       if (config.publicKey) {
@@ -159,6 +191,11 @@ export class TrustReceipts {
           typeof config.publicKey === 'string'
             ? hexToBytes(config.publicKey)
             : config.publicKey;
+        if (this.publicKey.length !== 32) {
+          throw new Error(
+            `Expected 32-byte Ed25519 public key, received ${this.publicKey.length} bytes`
+          );
+        }
       } else {
         this.publicKey = await getPublicKey(this.privateKey);
       }
@@ -175,25 +212,7 @@ export class TrustReceipts {
    *
    * @param fn - Async function that calls the AI API
    * @param options - Configuration for this specific call
-   * @returns The AI response and a signed trust receipt
-   *
-   * @example
-   * ```typescript
-   * const messages = [{ role: 'user', content: 'Hello!' }];
-   *
-   * const { response, receipt } = await receipts.wrap(
-   *   () => anthropic.messages.create({
-   *     model: 'claude-3-sonnet-20240229',
-   *     max_tokens: 1024,
-   *     messages,
-   *   }),
-   *   {
-   *     sessionId: 'session-abc',
-   *     input: messages,
-   *     agentId: 'claude-3-sonnet',
-   *   }
-   * );
-   * ```
+   * @returns The AI response and a signed SONATE v2.2.0 trust receipt
    */
   async wrap<T>(fn: () => Promise<T>, options: WrapOptions): Promise<WrappedResponse<T>> {
     // Ensure keys are ready
@@ -209,21 +228,24 @@ export class TrustReceipts {
 
     // Calculate scores
     const scores =
-      options.scores ?? this.calculateScores?.(options.input, responseContent) ?? {};
+      options.scores ?? this.calculateScores?.(options.input, responseContent) ?? undefined;
 
-    // Create receipt
-    const receiptData: TrustReceiptData = {
-      sessionId: options.sessionId,
-      prompt: options.input,
-      response: responseContent,
-      scores,
-      agentId: options.agentId ?? this.defaultAgentId,
-      prevReceiptHash: options.previousReceipt?.receiptHash,
-      metadata: options.metadata,
-      includeContent: options.includeContent,
-    };
-
-    const receipt = new TrustReceipt(receiptData);
+    const receipt = new TrustReceipt(
+      this.buildReceiptData({
+        sessionId: options.sessionId,
+        prompt: options.input,
+        response: responseContent,
+        scores,
+        agentId: options.agentId,
+        humanId: options.humanId,
+        model: options.model,
+        provider: options.provider,
+        mode: options.mode,
+        previousReceipt: options.previousReceipt,
+        metadata: options.metadata,
+        includeContent: options.includeContent,
+      })
+    );
     await receipt.sign(this.privateKey);
 
     return {
@@ -233,43 +255,81 @@ export class TrustReceipts {
   }
 
   /**
-   * Create a receipt manually (without wrapping a call)
+   * Create a receipt manually (without wrapping a call).
    *
    * Useful for streaming responses or custom scenarios.
    *
    * @param options - Receipt options
-   * @returns Signed trust receipt
+   * @returns Signed SONATE v2.2.0 trust receipt
    */
-  async createReceipt(options: CreateReceiptOptions): Promise<SignedReceipt> {
+  async createReceipt(options: CreateReceiptOptions): Promise<SonateReceipt> {
     await this.initialized;
 
-    const scores = options.scores ?? {};
-
-    const receiptData: TrustReceiptData = {
-      sessionId: options.sessionId,
-      prompt: options.prompt,
-      response: options.response,
-      scores,
-      agentId: options.agentId ?? this.defaultAgentId,
-      prevReceiptHash: options.previousReceipt?.receiptHash,
-      metadata: options.metadata,
-      includeContent: options.includeContent,
-    };
-
-    const receipt = new TrustReceipt(receiptData);
+    const receipt = new TrustReceipt(
+      this.buildReceiptData({
+        sessionId: options.sessionId,
+        prompt: options.prompt,
+        response: options.response,
+        scores: options.scores,
+        agentId: options.agentId,
+        humanId: options.humanId,
+        model: options.model,
+        provider: options.provider,
+        mode: options.mode,
+        previousReceipt: options.previousReceipt,
+        metadata: options.metadata,
+        includeContent: options.includeContent,
+      })
+    );
     await receipt.sign(this.privateKey);
 
     return receipt.toJSON();
   }
 
+  /** Assemble TrustReceiptData from wrap/create options and instance defaults. */
+  private buildReceiptData(opts: {
+    sessionId: string;
+    prompt: unknown;
+    response: unknown;
+    scores?: Scores;
+    agentId?: string;
+    humanId?: string;
+    model?: string;
+    provider?: string;
+    mode?: 'constitutional' | 'directive';
+    previousReceipt?: SonateReceipt;
+    metadata?: Record<string, unknown>;
+    includeContent?: boolean;
+  }): TrustReceiptData {
+    const agentId = opts.agentId ?? this.defaultAgentId;
+    return {
+      sessionId: opts.sessionId,
+      prompt: opts.prompt,
+      response: opts.response,
+      scores: opts.scores,
+      agentId,
+      humanId: opts.humanId ?? this.defaultHumanId,
+      model: opts.model ?? agentId,
+      provider: opts.provider,
+      mode: opts.mode,
+      prevReceiptHash: opts.previousReceipt?.chain?.chain_hash,
+      chainLength: opts.previousReceipt?.chain?.chain_length
+        ? opts.previousReceipt.chain.chain_length + 1
+        : undefined,
+      metadata: opts.metadata,
+      includeContent: opts.includeContent,
+      keyVersion: this.keyVersion,
+    };
+  }
+
   /**
-   * Verify a receipt's signature
+   * Verify a receipt's signature and integrity.
    *
    * @param receipt - Receipt to verify
    * @param publicKey - Optional public key (uses instance key if not provided)
-   * @returns true if signature is valid
+   * @returns true if the receipt is intact and the signature is valid
    */
-  async verifyReceipt(receipt: SignedReceipt, publicKey?: string | Uint8Array): Promise<boolean> {
+  async verifyReceipt(receipt: SonateReceipt, publicKey?: string | Uint8Array): Promise<boolean> {
     await this.initialized;
 
     const trustReceipt = TrustReceipt.fromJSON(receipt);
@@ -283,14 +343,14 @@ export class TrustReceipts {
   }
 
   /**
-   * Verify a chain of receipts
+   * Verify a chain of receipts (signatures + linkage).
    *
    * @param receipts - Array of receipts in chronological order
    * @param publicKey - Optional public key for signature verification
    * @returns Object with validity status and any errors
    */
   async verifyChain(
-    receipts: SignedReceipt[],
+    receipts: SonateReceipt[],
     publicKey?: string | Uint8Array
   ): Promise<{ valid: boolean; errors: string[] }> {
     await this.initialized;
@@ -301,21 +361,20 @@ export class TrustReceipts {
       return { valid: true, errors: [] };
     }
 
-    // Verify each receipt
     for (let i = 0; i < receipts.length; i++) {
       const current = receipts[i];
 
-      // Verify signature
+      // Verify signature + integrity
       const sigValid = await this.verifyReceipt(current, publicKey);
       if (!sigValid) {
         errors.push(`Receipt ${i}: Invalid signature`);
       }
 
-      // Verify chain (skip first receipt)
+      // Verify chain linkage (skip first receipt)
       if (i > 0) {
         const previous = receipts[i - 1];
-        if (current.prevReceiptHash !== previous.receiptHash) {
-          errors.push(`Receipt ${i}: Chain broken (prevReceiptHash mismatch)`);
+        if (current.chain?.previous_hash !== previous.chain?.chain_hash) {
+          errors.push(`Receipt ${i}: Chain broken (previous_hash mismatch)`);
         }
       }
     }
@@ -349,4 +408,4 @@ export class TrustReceipts {
 }
 
 // Re-export for convenience
-export { Scores, SignedReceipt, TrustReceipt, TrustReceiptData } from './trust-receipt';
+export { Scores, SonateReceipt, SignedReceipt, TrustReceipt, TrustReceiptData } from './trust-receipt';

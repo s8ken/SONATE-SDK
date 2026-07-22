@@ -23,12 +23,13 @@
  *
  * const { response, receipt } = await receipts.wrap(
  *   () => openai.chat.completions.create({ model: 'gpt-4', messages }),
- *   { sessionId: 'user-123', input: messages }
+ *   { sessionId: 'user-123', input: messages, provider: 'openai' }
  * );
  *
- * // receipt.promptHash = SHA-256 of canonicalized input
- * // receipt.responseHash = SHA-256 of AI response
- * // receipt.signature = Ed25519 signature
+ * // receipt.id = SHA-256 of the canonical receipt content
+ * // receipt.interaction.prompt_hash / response_hash = SHA-256 hashes
+ * // receipt.signature.value = Ed25519 signature (hex)
+ * // receipt verifies with @sonate/verify-sdk's verify()
  * ```
  *
  * @packageDocumentation
@@ -44,9 +45,10 @@ export type {
 } from './wrapper';
 
 // Trust Receipt class and types
-export { TrustReceipt } from './trust-receipt';
+export { TrustReceipt, computeReceiptId, computeChainHash } from './trust-receipt';
 export type {
   TrustReceiptData,
+  SonateReceipt,
   SignedReceipt,
   Scores,
   // Backwards compatibility
@@ -62,6 +64,7 @@ export {
   sha256,
   bytesToHex,
   hexToBytes,
+  canonicalize,
 } from './crypto';
 
 // Anchoring (OpenTimestamps)
