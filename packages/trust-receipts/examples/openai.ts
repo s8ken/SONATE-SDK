@@ -55,14 +55,15 @@ async function main() {
     {
       sessionId: 'demo-session-1',
       input: messages1,
+      provider: 'openai',
     }
   );
 
   console.log('AI Response:', response1.choices[0].message.content);
-  console.log('Receipt Hash:', receipt1.receiptHash);
-  console.log('Prompt Hash:', receipt1.promptHash);
-  console.log('Response Hash:', receipt1.responseHash);
-  console.log('Signature:', receipt1.signature.substring(0, 32) + '...');
+  console.log('Receipt ID:', receipt1.id);
+  console.log('Prompt Hash:', receipt1.interaction.prompt_hash);
+  console.log('Response Hash:', receipt1.interaction.response_hash);
+  console.log('Signature:', receipt1.signature.value.substring(0, 32) + '...');
 
   previousReceipt = receipt1;
 
@@ -81,15 +82,16 @@ async function main() {
     {
       sessionId: 'demo-session-1',
       input: messages2,
+      provider: 'openai',
       previousReceipt,
       metadata: { questionType: 'geography' },
     }
   );
 
   console.log('AI Response:', response2.choices[0].message.content);
-  console.log('Receipt Hash:', receipt2.receiptHash);
-  console.log('Previous Hash:', receipt2.prevReceiptHash);
-  console.log('Chain Valid:', receipt2.prevReceiptHash === receipt1.receiptHash);
+  console.log('Receipt ID:', receipt2.id);
+  console.log('Previous Hash:', receipt2.chain.previous_hash);
+  console.log('Chain Valid:', receipt2.chain.previous_hash === receipt1.chain.chain_hash);
 
   // Example 3: Verify the chain
   console.log('\n--- Example 3: Chain Verification ---\n');
@@ -115,6 +117,7 @@ async function main() {
     {
       sessionId: 'demo-session-1',
       input: messages3,
+      provider: 'openai',
       previousReceipt: receipt2,
       scores: {
         clarity: 0.95,
@@ -124,7 +127,8 @@ async function main() {
     }
   );
 
-  console.log('Custom Scores:', receipt3.scores);
+  // clarity -> telemetry.ciq_metrics.clarity; accuracy/completeness -> telemetry.custom_scores
+  console.log('Telemetry:', receipt3.telemetry);
 
   // Export receipts for storage
   console.log('\n--- Receipt JSON (for storage) ---\n');

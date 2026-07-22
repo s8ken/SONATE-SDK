@@ -57,6 +57,7 @@ async function main() {
     {
       sessionId: 'claude-demo-1',
       input: messages1,
+      provider: 'anthropic',
     }
   );
 
@@ -64,10 +65,10 @@ async function main() {
     response1.content[0].type === 'text' ? response1.content[0].text : '[non-text content]';
 
   console.log('Claude Response:', text1.substring(0, 200) + '...');
-  console.log('Receipt Hash:', receipt1.receiptHash);
-  console.log('Prompt Hash:', receipt1.promptHash);
-  console.log('Response Hash:', receipt1.responseHash);
-  console.log('Calculated Scores:', receipt1.scores);
+  console.log('Receipt ID:', receipt1.id);
+  console.log('Prompt Hash:', receipt1.interaction.prompt_hash);
+  console.log('Response Hash:', receipt1.interaction.response_hash);
+  console.log('Telemetry:', receipt1.telemetry);
 
   // Example 2: Chained conversation with metadata
   console.log('\n--- Example 2: Chained Conversation ---\n');
@@ -89,6 +90,7 @@ async function main() {
     {
       sessionId: 'claude-demo-1',
       input: messages2,
+      provider: 'anthropic',
       previousReceipt: receipt1,
       metadata: {
         topic: 'ai-ethics',
@@ -97,8 +99,8 @@ async function main() {
     }
   );
 
-  console.log('Chain Valid:', receipt2.prevReceiptHash === receipt1.receiptHash);
-  console.log('Agent ID:', receipt2.agentId);
+  console.log('Chain Valid:', receipt2.chain.previous_hash === receipt1.chain.chain_hash);
+  console.log('Agent DID:', receipt2.agent_did);
   console.log('Metadata:', receipt2.metadata);
 
   // Example 3: Streaming with manual receipt creation
@@ -128,6 +130,7 @@ async function main() {
     sessionId: 'claude-demo-1',
     prompt: streamPrompt,
     response: fullResponse,
+    provider: 'anthropic',
     previousReceipt: receipt2,
     scores: {
       creativity: 0.9,
@@ -139,7 +142,7 @@ async function main() {
     },
   });
 
-  console.log('Streaming Receipt Hash:', receipt3.receiptHash);
+  console.log('Streaming Receipt ID:', receipt3.id);
 
   // Verify entire chain
   console.log('\n--- Chain Verification ---\n');
