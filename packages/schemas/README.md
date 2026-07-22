@@ -54,13 +54,20 @@ A Trust Receipt contains:
 | Field | Description |
 |-------|-------------|
 | `id` | SHA-256 hash of canonical content |
-| `version` | Schema version (`"2.0.0"`) |
+| `version` | Schema version (`"2.0.0"` or `"2.2.0"`) |
 | `timestamp` | ISO 8601 timestamp |
 | `agent_did` | DID of the AI agent |
 | `human_did` | DID of the human user |
+| `policy_version` | Optional — version of policy that governed the interaction |
 | `interaction` | Prompt/response data (raw or hashed) |
-| `chain` | Hash chain for immutability |
-| `signature` | Ed25519 cryptographic signature |
+| `chain` | Hash chain for immutability (`chain_length` optional) |
+| `signature` | Ed25519 cryptographic signature (`public_key`, `timestamp_signed` optional) |
+
+The validators accept both `2.0.0` and `2.2.0` receipts. `2.0.0` receipts carry raw
+`interaction.prompt`/`interaction.response` and a required `policy_version`; `2.2.0`
+receipts are privacy-preserving by default (hash-only) and treat `policy_version` as
+optional. At least one of `prompt`/`prompt_hash` and one of `response`/`response_hash`
+must be present.
 
 ### Privacy-by-Default
 
@@ -83,6 +90,15 @@ interaction: {
   model: "gpt-4"
 }
 ```
+
+### v2.2.0 fields
+
+Beyond the `2.0.0` shape, validators also accept:
+
+- `chain.chain_length` — position of a receipt in its hash chain
+- `signature.public_key` / `signature.timestamp_signed`
+- `telemetry.ciq_metrics` and `telemetry.custom_scores` — attestation scores
+- `metadata` — arbitrary application-defined keys
 
 ## Related Packages
 

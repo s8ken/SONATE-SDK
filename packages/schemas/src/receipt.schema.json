@@ -11,7 +11,6 @@
     "session_id",
     "agent_did",
     "human_did",
-    "policy_version",
     "mode",
     "interaction",
     "signature",
@@ -27,8 +26,8 @@
     "version": {
       "type": "string",
       "description": "Receipt schema version",
-      "enum": ["2.0.0"],
-      "example": "2.0.0"
+      "enum": ["2.0.0", "2.2.0"],
+      "example": "2.2.0"
     },
     "timestamp": {
       "type": "string",
@@ -55,7 +54,7 @@
     },
     "policy_version": {
       "type": "string",
-      "description": "Version of policy that governed this interaction",
+      "description": "Version of policy that governed this interaction (optional on v2.2.0 hash-only receipts without an explicit policy)",
       "example": "policy_v1.2.0"
     },
     "mode": {
@@ -65,8 +64,22 @@
     },
     "interaction": {
       "type": "object",
-      "description": "The actual AI interaction data",
+      "description": "The actual AI interaction data. Privacy-preserving hash-only receipts (prompt_hash/response_hash) are the default; raw prompt/response content is opt-in. At least one of prompt/prompt_hash and one of response/response_hash must be present.",
       "required": ["model"],
+      "allOf": [
+        {
+          "anyOf": [
+            { "required": ["prompt"] },
+            { "required": ["prompt_hash"] }
+          ]
+        },
+        {
+          "anyOf": [
+            { "required": ["response"] },
+            { "required": ["response_hash"] }
+          ]
+        }
+      ],
       "properties": {
         "prompt": {
           "type": "string",
@@ -198,6 +211,17 @@
           "minimum": 0,
           "maximum": 1,
           "example": 0.22
+        },
+        "custom_scores": {
+          "type": "object",
+          "description": "Additional attestation scores beyond the CIQ triad (v2.2.0)",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "overall_trust_score": {
+          "type": "number",
+          "description": "Overall trust score derived from weighted principles (0-100, v2.2.0)"
         },
         "ciq_metrics": {
           "type": "object",
@@ -370,8 +394,8 @@
         },
         "value": {
           "type": "string",
-          "description": "Base64-encoded signature of canonical receipt",
-          "example": "MEQCIDGrvmTEr7c00rpf5Z+O50Ad5Z8Xxfqfjf9Z8O50Ad5=="
+          "description": "Encoded signature of canonical receipt (base64 in v2.0.0, hex in v2.2.0)",
+          "example": "056cd0907e3eae546177c6a0c8337c1ea2ffe4b38728a0a8f4bbc84ea57f51a0d87435344ffd296e07f26d92ecdc08dda808d124bb3fa9814673bb4e2a5b4d0b"
         },
         "key_version": {
           "type": "string",
@@ -382,6 +406,11 @@
           "type": "string",
           "format": "date-time",
           "description": "When receipt was signed"
+        },
+        "public_key": {
+          "type": "string",
+          "description": "Public key used to produce this signature, hex-encoded (v2.2.0)",
+          "example": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12"
         }
       }
     },

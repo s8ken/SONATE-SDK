@@ -53,4 +53,7 @@ import receiptSchemaJSON from './receipt.schema.json';
 export const RECEIPT_SCHEMA = receiptSchemaJSON;
 
 // Version
-export const SCHEMA_VERSION = '2.0.0';
+export const SCHEMA_VERSION = '2.2.0';
+
+/** Receipt schema versions accepted by this package's validators. */
+export const SUPPORTED_SCHEMA_VERSIONS = ['2.0.0', '2.2.0'] as const;

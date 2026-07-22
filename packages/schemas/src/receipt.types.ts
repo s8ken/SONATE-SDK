@@ -157,6 +157,9 @@ export interface Telemetry {
     quality?: number;
   };
 
+  /** Additional attestation scores beyond the CIQ triad (v2.2.0) */
+  custom_scores?: Record<string, number>;
+
   /** Calculator component breakdown (0-1 components before weighted composition) */
   resonance_components?: {
     vector_alignment?: number;
@@ -360,9 +363,12 @@ export interface DigitalSignature {
   
   /** Which version of agent's key was used */
   key_version: string;
-  
+
   /** When receipt was signed */
   timestamp_signed?: string;
+
+  /** Public key used to produce this signature, hex-encoded (v2.2.0) */
+  public_key?: string;
 }
 
 /**
@@ -400,25 +406,25 @@ export interface DigitalSignature {
 export interface TrustReceipt {
   /** Unique receipt identifier (SHA-256 hash) */
   id: string;
-  
+
   /** Receipt schema version */
-  version: "2.0.0";
-  
+  version: "2.0.0" | "2.2.0";
+
   /** ISO 8601 timestamp of interaction */
   timestamp: string;
-  
+
   /** Conversation/session identifier */
   session_id: string;
-  
+
   /** DID of the AI agent */
   agent_did: string;
-  
+
   /** DID of the human user */
   human_did: string;
-  
-  /** Version of policy that governed this interaction */
-  policy_version: string;
-  
+
+  /** Version of policy that governed this interaction (omitted on hash-only v2.2.0 receipts without an explicit policy) */
+  policy_version?: string;
+
   /** Governance mode */
   mode: InteractionMode;
   
@@ -445,8 +451,10 @@ export interface TrustReceipt {
     context?: Record<string, any>;
     /** Client that generated this receipt */
     user_agent?: string;
+    /** Additional application-defined metadata keys (v2.2.0) */
+    [key: string]: any;
   };
-  
+
   /** Policy enforcement results (Phase 2) */
   policy_enforcement?: {
     /** List of policy IDs evaluated */
@@ -471,7 +479,7 @@ export interface CreateReceiptInput {
   session_id: string;
   agent_did: string;
   human_did: string;
-  policy_version: string;
+  policy_version?: string;
   mode: InteractionMode;
   interaction: AIInteraction;
   telemetry?: Telemetry;
@@ -481,6 +489,7 @@ export interface CreateReceiptInput {
     tags?: string[];
     context?: Record<string, any>;
     user_agent?: string;
+    [key: string]: any;
   };
 }
 
