@@ -31,16 +31,16 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/s8ken/SONATE-SDK.git",
+    "url": "https://github.com/s8ken/sonate-receipts.git",
     "directory": "packages/trust-receipts"
   },
   "bugs": {
-    "url": "https://github.com/s8ken/SONATE-SDK/issues"
+    "url": "https://github.com/s8ken/sonate-receipts/issues"
   },
-  "homepage": "https://github.com/s8ken/SONATE-SDK/tree/main/packages/trust-receipts#readme",
+  "homepage": "https://github.com/s8ken/sonate-receipts/tree/main/packages/trust-receipts#readme",
   "dependencies": {
     "@noble/ed25519": "^3.0.0",
-    "json-canonicalize": "^2.0.0"
+    "json-canonicalize": "2.0.0"
   },
   "devDependencies": {
     "@sonate/verify-sdk": "*",
