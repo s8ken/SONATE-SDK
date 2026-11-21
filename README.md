@@ -1,177 +1,177 @@
-# SONATE-SDK
+# SONATE Receipts
 
-Public SDK workspace for integrating with SONATE platform receipts and verification.
+Verifiable receipts for AI decisions.
 
-SONATE gives developers a way to make AI interactions cryptographically verifiable:
-- send interactions to SONATE and receive signed governance receipts
-- generate signed receipts for model outputs
-- verify signatures and hash-chain integrity offline
-- validate receipt structure against a shared schema
+Sign a receipt for every model call or agent action. Anyone with your public key
+can later check, offline and without trusting you or any service, that the
+record hasn't been changed and where it sits in your history.
 
-## What Is Public
+```
+VALID    receipt 1
+         ✓ structure  ✓ signature  ✓ hash  ✓ chain  ✓ timestamp
+INVALID  receipt 2, response hash edited after signing
+         ✓ structure  ✗ signature  ✗ hash  ✗ chain  ✓ timestamp
+```
 
-This repository contains the public integration and verification surface:
-- [`@sonate/sdk`](https://www.npmjs.com/package/@sonate/sdk) — official platform client for evaluating interactions and receiving signed receipts
-- [`@sonate/trust-receipts`](https://www.npmjs.com/package/@sonate/trust-receipts) — advanced local or self-managed receipt tooling
-- [`@sonate/verify-sdk`](https://www.npmjs.com/package/@sonate/verify-sdk) — verify receipts in Node.js or the browser
-- [`@sonate/schemas`](https://www.npmjs.com/package/@sonate/schemas) — shared JSON Schema and TypeScript types
+## Why
 
-## What Is Not Public
+AI agents now approve refunds, triage claims and act on people's behalf. When
+something goes wrong, or an auditor or customer asks why it happened, a log file
+the operator controls isn't evidence: it can be edited after the fact.
 
-The verification layer is intentionally open.
-The enforcement engine is proprietary.
+A receipt is evidence. Each one is:
 
-That split is deliberate:
-- developers, auditors, and counterparties should be able to inspect and verify receipt integrity independently
-- SONATE's internal scoring, policy packs, kernel logic, runtime evidence layer, and governance orchestration remain private product IP
+- **Signed** with Ed25519, so it is attributable to one key holder.
+- **Content-addressed**: its `id` is the SHA-256 of its canonical JSON
+  ([RFC 8785](https://www.rfc-editor.org/rfc/rfc8785)), so any edit changes it.
+- **Hash-chained** to the previous receipt, so deleting or reordering history is
+  detectable.
+- **Private by default**: it stores SHA-256 hashes of the prompt and response,
+  not the text.
+- **Independently verifiable**: the verifier is a separate package with two
+  small dependencies, in Node.js or the browser.
 
-This is the same design principle used in other infrastructure products: the interface is open, the decision engine is not.
+## What's here
 
-## Quick Start
+| Package | Language | Install | Use it to |
+| --- | --- | --- | --- |
+| [`@sonate/trust-receipts`](packages/trust-receipts) | TypeScript | `npm i @sonate/trust-receipts` | Sign and chain receipts; wrap OpenAI or Anthropic calls |
+| [`@sonate/verify-sdk`](packages/verify-sdk) | TypeScript | `npm i @sonate/verify-sdk` | Verify receipts and chains, offline |
+| [`sonate-trust-receipts`](packages/trust-receipts-python) | Python | `pip install sonate-trust-receipts` | Sign and verify receipts in Python |
+| [`@sonate/schemas`](packages/schemas) | TypeScript | `npm i @sonate/schemas` | JSON Schema and types for the receipt format |
+| [`@sonate/sdk`](packages/sdk) | TypeScript | `npm i @sonate/sdk` | Client for the hosted SONATE platform ([below](#hosted-platform)) |
 
-Install the public packages you need:
+The format is specified in [`spec/receipt-format.md`](spec/receipt-format.md).
+
+## Try it
 
 ```bash
-npm install @sonate/sdk
+git clone https://github.com/s8ken/sonate-receipts && cd sonate-receipts
+npm install && npm run build
+npm run example
 ```
 
-### 1. Evaluate An Interaction
+[`examples/sign-and-verify.mjs`](examples/sign-and-verify.mjs) signs two chained
+receipts, verifies them with the separate verifier, then shows that an edit
+after signing, or the wrong public key, is rejected. No API keys or network.
+
+## Use it
+
+**Sign** (TypeScript):
 
 ```ts
-import { SonateClient } from "@sonate/sdk";
+import { TrustReceipts } from '@sonate/trust-receipts';
 
-const sonate = new SonateClient({
-  apiKey: process.env.SONATE_API_KEY!,
+const receipts = new TrustReceipts({ privateKey: process.env.SONATE_PRIVATE_KEY });
+
+const receipt = await receipts.createReceipt({
+  sessionId: 'session-42',
+  prompt: 'Customer asks for a $40 refund on order #1042.',
+  response: 'Approved: under the $50 auto-approve limit.',
+  model: 'gpt-4o-mini',
+  previousReceipt, // optional: chains this receipt to the last one
 });
-
-const evaluation = await sonate.evaluate({
-  sessionId: "session-123",
-  model: "gpt-4o-mini",
-  prompt: "Explain zero-knowledge proofs.",
-  response: "Zero-knowledge proofs let one party prove a statement without revealing the secret itself."
-});
-
-console.log(evaluation.status);
-console.log(evaluation.receiptHash);
-console.log(evaluation.verificationUrl);
 ```
 
-### 2. Wrap An Existing Model Call
+Or wrap a model call and get the response and its receipt together:
 
 ```ts
-import OpenAI from "openai";
-import { SonateClient } from "@sonate/sdk";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const sonate = new SonateClient({ apiKey: process.env.SONATE_API_KEY! });
-
-const { result, evaluation } = await sonate.wrap(
-  () =>
-    openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: "Explain zero-knowledge proofs." }],
-    }),
-  {
-    sessionId: "session-123",
-    prompt: "Explain zero-knowledge proofs.",
-    model: "gpt-4o-mini",
-    provider: "openai",
-  }
+const { response, receipt } = await receipts.wrap(
+  () => openai.chat.completions.create({ model: 'gpt-4o-mini', messages }),
+  { sessionId: 'session-42', input: messages, provider: 'openai' }
 );
-
-console.log(result.choices[0].message.content);
-console.log(evaluation.kernelSummary);
 ```
 
-### 3. Verify A Receipt
+**Verify** (anywhere, with only the public key):
 
 ```ts
-import { fetchPublicKey, verify } from "@sonate/verify-sdk";
+import { verify } from '@sonate/verify-sdk';
 
-const publicKey = await fetchPublicKey();
-const result = await verify(evaluation.receipt, publicKey);
-
-console.log(result.valid);
-console.log(result.errors);
+const result = await verify(receipt, publicKeyHex);
+result.valid;   // true only if structure, hash, signature, chain and timestamp all pass
+result.checks;  // each check with a message
 ```
 
-### 3. Validate The Shape
+**Python**:
+
+```python
+from sonate import TrustReceipts
+
+receipts = TrustReceipts(
+    private_key=seed_hex,
+    default_agent_did="did:sonate:refund-agent",
+    default_human_did="did:sonate:customer-7",
+)
+response, receipt = receipts.wrap(
+    lambda: call_your_model(prompt),
+    session_id="session-42",
+    input=prompt,
+    model="gpt-4o-mini",
+)
+assert receipts.verify_receipt(receipt)
+```
+
+## How it works
+
+```
+receipt fields ──► id         = sha256(canonical(receipt − signature − id, chain_hash = ""))
+               ──► chain_hash = sha256(canonical(receipt − signature, chain_hash = "") + previous_hash)
+               ──► signature  = Ed25519(canonical(receipt − signature))
+```
+
+The signature covers the `id` and the final `chain_hash`. The verifier repeats
+each step and compares. See [the spec](spec/receipt-format.md) for the exact
+rules, the five verification checks, and the limits of what a receipt proves.
+
+## Guarantees and limits
+
+A valid receipt proves the key holder signed exactly this record (these input
+and output hashes, model, session, metrics and chain position) and that nothing
+covered by the signature has changed since.
+
+It doesn't prove the model really produced that output, that the metrics are
+right, or that the timestamp is true. The producer asserts the timestamp, and a
+key holder could re-sign an alternative history. Optional OpenTimestamps
+anchoring in `@sonate/trust-receipts`, or sharing receipt hashes with a
+counterparty as they're created, narrows that gap.
+
+## Conformance
+
+Golden fixtures are generated from a fixed test seed, and the suites check them
+across languages:
+
+- the Python SDK verifies the JavaScript receipts and reproduces them byte for
+  byte, and
+- `@sonate/verify-sdk` verifies the Python receipts and rejects tampered ones.
+
+Run everything with `npm test` (TypeScript) and `pytest` in
+`packages/trust-receipts-python`. CI runs both.
+
+## Hosted platform
+
+`@sonate/sdk` is the client for the hosted SONATE platform, which evaluates
+interactions against governance policies and returns platform-signed receipts.
+The platform's policy engine is not part of this repository. Its receipts use
+the same format, so `@sonate/verify-sdk` verifies them with the platform's
+published key:
 
 ```ts
-import { receiptValidator } from "@sonate/schemas";
+import { fetchPublicKey, verify } from '@sonate/verify-sdk';
 
-const validation = receiptValidator.validateJSON(receipt);
-console.log(validation.valid);
+const result = await verify(receipt, await fetchPublicKey());
 ```
 
-## Package Guide
+## Status
 
-### `@sonate/sdk`
+The receipt format is at v2.2.0. Published versions: `@sonate/trust-receipts`
+3.0.0, `@sonate/verify-sdk` 2.1.1, `@sonate/schemas` 2.2.0,
+`sonate-trust-receipts` 3.0.0 on PyPI. [`CHANGELOG.md`](CHANGELOG.md) lists
+changes not yet released.
 
-Use this when you want to:
-- send interactions to the SONATE platform
-- receive constitutional scores, kernel verdicts, and signed receipts
-- wrap existing model calls with one client
-- integrate with the public verifier flow
+## Security
 
-See: [`packages/sdk`](./packages/sdk)
-
-### `@sonate/trust-receipts`
-
-Use this when you want to:
-- generate receipts locally
-- sign receipts with Ed25519
-- hash-chain multi-turn conversations
-- anchor receipt hashes into your own audit flow
-- build self-managed or hybrid attestation flows
-
-See: [`packages/trust-receipts`](./packages/trust-receipts)
-
-### `@sonate/verify-sdk`
-
-Use this when you want to:
-- verify receipts offline
-- validate signatures and chain continuity
-- fetch a public key from a verification endpoint
-- run receipt checks in a browser or Node.js
-
-See: [`packages/verify-sdk`](./packages/verify-sdk)
-
-### `@sonate/schemas`
-
-Use this when you want to:
-- share receipt types across services
-- validate receipt payloads with JSON Schema
-- build your own tooling around the receipt format
-
-See: [`packages/schemas`](./packages/schemas)
-
-## Recommended Adoption Pattern
-
-For most teams:
-1. Start with `@sonate/sdk` to send interactions to SONATE and receive a signed receipt.
-2. Add `@sonate/verify-sdk` anywhere that needs independent verification.
-3. Use `@sonate/schemas` in shared tooling, ingestion pipelines, or compliance workflows.
-4. Only use `@sonate/trust-receipts` if you specifically need self-managed receipt generation.
-
-## Repository Structure
-
-```text
-SONATE-SDK/
-├── packages/
-│   ├── sdk/
-│   ├── schemas/
-│   ├── trust-receipts/
-│   └── verify-sdk/
-```
-
-## Philosophy
-
-SONATE is designed so that verification does not require trusting SONATE.
-
-You can inspect the receipt format, validate the schema, and verify the signatures yourself.
-What stays private is the internal enforcement and governance engine that decides how a system should respond to risky behavior.
+Report vulnerabilities privately; see [`SECURITY.md`](SECURITY.md).
 
 ## License
 
-MIT
+[MIT](LICENSE)
