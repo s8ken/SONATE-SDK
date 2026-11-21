@@ -37,13 +37,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/s8ken/SONATE-SDK.git",
+    "url": "git+https://github.com/s8ken/sonate-receipts.git",
     "directory": "packages/verify-sdk"
   },
   "bugs": {
-    "url": "https://github.com/s8ken/SONATE-SDK/issues"
+    "url": "https://github.com/s8ken/sonate-receipts/issues"
   },
-  "homepage": "https://github.com/s8ken/SONATE-SDK/tree/main/packages/verify-sdk#readme",
+  "homepage": "https://github.com/s8ken/sonate-receipts/tree/main/packages/verify-sdk#readme",
   "devDependencies": {
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@noble/ed25519": "^3.0.0",
-    "json-canonicalize": "^1.2.0"
+    "json-canonicalize": "2.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

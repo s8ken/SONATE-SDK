@@ -117,11 +117,17 @@ export interface PublicKeyInfo {
   keyId?: string;
 }
 
-// Default SONATE public key endpoint
-const DEFAULT_PUBKEY_URL = 'https://yseeku-backend.fly.dev/api/public-demo/public-key';
+// Default SONATE public key endpoint — the standards-based .well-known discovery
+// path, not a path scoped to the demo backend. An SDK meant for auditors/third
+// parties to verify production receipts shouldn't default to a "demo" URL.
+const DEFAULT_PUBKEY_URL = 'https://yseeku-backend.fly.dev/.well-known/sonate-pubkey.json';
 
 /**
- * Fetch the SONATE platform public key
+ * Fetch the SONATE platform public key.
+ *
+ * Accepts either response shape: the canonical .well-known JWK-style document
+ * (hex key nested at sonate.keyFormat.hex) or the older flat {publicKey} /
+ * {data: {publicKey}} shape, so a caller pointing `url` at either endpoint works.
  */
 export async function fetchPublicKey(url?: string): Promise<string> {
   const response = await fetch(url || DEFAULT_PUBKEY_URL);
@@ -129,7 +135,11 @@ export async function fetchPublicKey(url?: string): Promise<string> {
     throw new Error(`Failed to fetch public key: ${response.status}`);
   }
   const data = await response.json();
-  return data.data?.publicKey || data.publicKey;
+  const publicKey = data.sonate?.keyFormat?.hex || data.data?.publicKey || data.publicKey;
+  if (!publicKey) {
+    throw new Error('Public key endpoint response did not contain a recognizable public key');
+  }
+  return publicKey;
 }
 
 /**
