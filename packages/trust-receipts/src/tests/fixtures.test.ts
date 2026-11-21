@@ -21,7 +21,12 @@ function load(name: string): any {
   return JSON.parse(readFileSync(join(FIXTURES_DIR, name), 'utf-8'));
 }
 
-const SINGLE_FIXTURES = ['genesis-hash-only.json', 'full-content.json', 'explicit-dids.json'];
+const SINGLE_FIXTURES = [
+  'genesis-hash-only.json',
+  'full-content.json',
+  'explicit-dids.json',
+  'large-integers.json',
+];
 
 describe('golden fixtures', () => {
   for (const file of SINGLE_FIXTURES) {

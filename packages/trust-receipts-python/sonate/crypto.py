@@ -57,8 +57,44 @@ def canonicalize_bytes(obj: Any) -> bytes:
     ``null`` while stripping ``undefined``). Absent optional fields must simply be
     omitted from ``obj`` by the caller — never set to ``None`` — so that the two
     implementations agree.
+
+    Integers beyond ±(2**53 - 1) are accepted only when they are written exactly
+    as JavaScript writes the nearest double (see :func:`_js_safe_numbers`), so
+    receipts a JavaScript producer signed with large numbers still verify.
     """
-    return rfc8785.dumps(obj)
+    return rfc8785.dumps(_js_safe_numbers(obj))
+
+
+_MAX_SAFE_INTEGER = 2**53 - 1
+
+
+def _js_safe_numbers(value: Any) -> Any:
+    """Return ``value`` with large integers that JavaScript can represent as floats.
+
+    JavaScript parses every JSON number as a double and writes it back in its
+    shortest form, so a JavaScript-signed receipt only ever contains tokens like
+    ``1700000000000000000`` or ``9223372036854776000``. Python parses those as
+    ``int``, which ``rfc8785`` rejects beyond ±(2**53 - 1). Converting such an int
+    to ``float`` is lossless when ``rfc8785`` writes the float back as the same
+    digits; any other large int (for example ``2**63 - 1``, which JavaScript would
+    silently round) is left alone so ``rfc8785`` still rejects it.
+    """
+    if isinstance(value, dict):
+        return {k: _js_safe_numbers(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_js_safe_numbers(v) for v in value]
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and abs(value) > _MAX_SAFE_INTEGER
+    ):
+        try:
+            as_float = float(value)
+        except OverflowError:
+            return value
+        if rfc8785.dumps(as_float) == str(value).encode("ascii"):
+            return as_float
+    return value
 
 
 def canonicalize(obj: Any) -> str:
@@ -157,8 +193,11 @@ def verify_detached(
     try:
         if isinstance(signature, str):
             signature = bytes.fromhex(signature)
-        else:
+        elif isinstance(signature, (bytes, bytearray, memoryview)):
             signature = bytes(signature)
+        else:
+            # Never call bytes() on untrusted input: bytes(n) allocates n bytes.
+            return False
         if isinstance(message, str):
             message = message.encode("utf-8")
         pub = normalize_public_key(public_key)
