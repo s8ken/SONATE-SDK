@@ -114,7 +114,8 @@ def test_hand_constructed_receipt_matches_class_and_verifies():
         "mode": "constitutional",
         "interaction": interaction,
         "telemetry": {"resonance_score": 0.95, "overall_trust_score": 92},
-        "chain": {"previous_hash": "GENESIS", "chain_hash": ""},
+        # A first receipt is position 1 by default, in both SDKs.
+        "chain": {"previous_hash": "GENESIS", "chain_hash": "", "chain_length": 1},
     }
     receipt_id = contract.generate_receipt_id(core)
     with_id = {**core, "id": receipt_id}

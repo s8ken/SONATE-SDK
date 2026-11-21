@@ -102,8 +102,13 @@ pass.
 | `structure` | `id` and `signature.value` are present. |
 | `hash` | Recomputing step 1 gives exactly `id`. |
 | `signature` | The Ed25519 signature over step 3's input verifies with the public key. |
-| `chain` | Recomputing step 2 gives exactly `chain.chain_hash`. A first receipt (`previous_hash: "GENESIS"`) with no `chain_hash` also passes. |
+| `chain` | Recomputing step 2 gives exactly `chain.chain_hash`. A first receipt (`previous_hash: "GENESIS"`) with no `chain_hash` also passes. If `chain_hash` or `previous_hash` is missing or empty (other than `GENESIS`), the check is skipped and passes. |
 | `timestamp` | `timestamp` is no more than 5 minutes in the future and no older than the maximum age (default 1 year; configurable). |
+
+The verifiers do not enforce the schema's required fields: a receipt missing
+`chain` data still passes if the other checks do. The signature covers whatever
+`chain` block is present, so it cannot be changed undetected, but to reject
+malformed receipts, also validate them against the JSON Schema.
 
 Checking a single receipt does not check its neighbours. To verify a chain,
 also check that each receipt's `chain.previous_hash` equals the `chain_hash` of
