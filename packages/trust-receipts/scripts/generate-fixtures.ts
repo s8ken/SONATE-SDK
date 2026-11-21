@@ -75,6 +75,21 @@ const specs: FixtureSpec[] = [
       timestamp: FIXED_TIMESTAMP,
     },
   },
+  {
+    name: 'large-integers',
+    description:
+      'Metadata with integers beyond 2^53 - 1, written as JavaScript writes them; Python must verify and reproduce it.',
+    data: {
+      sessionId: 'fixture-session-004',
+      prompt: 'ping',
+      response: 'pong',
+      agentId: 'test-agent',
+      model: 'test-model',
+      // A nanosecond timestamp, and the double nearest 2^63 - 1 as JavaScript prints it.
+      metadata: { event_timestamp_ns: 1700000000000000000, max_int64: 9223372036854776000 },
+      timestamp: FIXED_TIMESTAMP,
+    },
+  },
 ];
 
 async function main(): Promise<void> {

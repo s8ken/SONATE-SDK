@@ -15,6 +15,7 @@ trust receipt::
     )
 """
 
+from collections.abc import Mapping
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .crypto import bytes_to_hex, generate_key_pair, get_public_key, normalize_public_key
@@ -24,19 +25,37 @@ from .verifier import verify_receipt
 __all__ = ["TrustReceipts"]
 
 
+_MISSING = object()
+
+
+def _field(obj: Any, name: str) -> Any:
+    """Read ``name`` as a mapping key or, for SDK response objects, an attribute."""
+    if isinstance(obj, Mapping):
+        return obj.get(name, _MISSING)
+    if obj is None or isinstance(obj, (str, bytes, int, float, list, tuple)):
+        return _MISSING
+    return getattr(obj, name, _MISSING)
+
+
 def _extract_response_content(response: Any) -> Any:
-    """Best-effort extraction of text from common AI response shapes."""
-    if not isinstance(response, dict):
-        return response
-    choices = response.get("choices")
-    if isinstance(choices, list) and choices:
-        message = choices[0].get("message") if isinstance(choices[0], dict) else None
-        if isinstance(message, dict) and "content" in message:
-            return message["content"]
-    content = response.get("content")
-    if isinstance(content, list) and content and isinstance(content[0], dict):
-        if "text" in content[0]:
-            return content[0]["text"]
+    """Best-effort extraction of text from common AI response shapes.
+
+    Handles both plain dicts and the response objects the OpenAI
+    (``choices[0].message.content``) and Anthropic (``content[0].text``) Python
+    SDKs return.
+    """
+    choices = _field(response, "choices")
+    if isinstance(choices, (list, tuple)) and choices:
+        message = _field(choices[0], "message")
+        if message is not _MISSING:
+            content = _field(message, "content")
+            if content is not _MISSING:
+                return content
+    content = _field(response, "content")
+    if isinstance(content, (list, tuple)) and content:
+        text = _field(content[0], "text")
+        if text is not _MISSING:
+            return text
     return response
 
 
@@ -196,13 +215,22 @@ class TrustReceipts:
         return {"valid": len(errors) == 0, "errors": errors}
 
     @staticmethod
-    def _chain_link(previous_receipt: Optional[Dict[str, Any]]) -> Tuple[str, int]:
+    def _chain_link(previous_receipt: Optional[Dict[str, Any]]) -> Tuple[str, Optional[int]]:
+        """Return the next receipt's ``previous_hash`` and ``chain_length``.
+
+        Matches the TypeScript SDK: the position is the predecessor's plus one,
+        or 1 for the first receipt. When the predecessor doesn't record its
+        position (``chain_length`` is optional), the position is unknown and is
+        omitted rather than invented.
+        """
         if not previous_receipt:
             return "GENESIS", 1
         prev_chain = previous_receipt.get("chain") or {}
         previous_hash = prev_chain.get("chain_hash") or "GENESIS"
-        chain_length = (prev_chain.get("chain_length") or 0) + 1
-        return previous_hash, chain_length
+        prev_length = prev_chain.get("chain_length")
+        if isinstance(prev_length, int) and not isinstance(prev_length, bool) and prev_length > 0:
+            return previous_hash, prev_length + 1
+        return previous_hash, (1 if previous_hash == "GENESIS" else None)
 
 
 def _to_text(value: Any) -> str:
@@ -213,4 +241,9 @@ def _to_text(value: Any) -> str:
         return value
     from .crypto import canonicalize
 
+    # SDK response objects (OpenAI, Anthropic) are pydantic models: hash their
+    # JSON form, as for a plain dict, rather than failing after the model call.
+    dump = getattr(value, "model_dump", None)
+    if callable(dump):
+        value = dump(mode="json")
     return canonicalize(value)

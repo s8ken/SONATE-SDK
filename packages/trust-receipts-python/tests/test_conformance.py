@@ -33,6 +33,8 @@ from sonate import (
 
 SEED = "42" * 32
 PUB = get_public_key(SEED)
+# Golden receipts carry fixed timestamps; keep them verifiable however old they get.
+NO_MAX_AGE_MS = 100 * 365 * 24 * 60 * 60 * 1000
 
 PKG_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY_FIXTURES = os.path.join(PKG_ROOT, "fixtures")
@@ -129,7 +131,7 @@ def test_hand_constructed_receipt_matches_class_and_verifies():
         },
     }
 
-    assert verify_receipt(hand, PUB).valid is True
+    assert verify_receipt(hand, PUB, max_age_ms=NO_MAX_AGE_MS).valid is True
 
     # The friendly class must produce the identical bytes for the same input.
     via_class = TrustReceipt(
@@ -165,7 +167,7 @@ def test_python_fixture_verifies(name):
     receipts = _load_receipts(PY_FIXTURES)
     if name == "__none__":
         pytest.skip("No Python fixtures generated yet")
-    result = verify_receipt(receipts[name], _pubkey_for(PY_FIXTURES))
+    result = verify_receipt(receipts[name], _pubkey_for(PY_FIXTURES), max_age_ms=NO_MAX_AGE_MS)
     assert result.valid, f"{name} failed: {result.errors}"
 
 
@@ -193,7 +195,7 @@ _JS_ENTRIES = _load_js_fixtures(JS_FIXTURES) if os.path.isdir(JS_FIXTURES) else 
 def test_js_fixture_verifies_in_python(label):
     entries = {e[0]: e for e in _load_js_fixtures(JS_FIXTURES)}
     _, receipt, pub = entries[label]
-    result = verify_receipt(receipt, pub)
+    result = verify_receipt(receipt, pub, max_age_ms=NO_MAX_AGE_MS)
     assert result.valid, f"{label} failed Python verification: {result.errors}"
 
 

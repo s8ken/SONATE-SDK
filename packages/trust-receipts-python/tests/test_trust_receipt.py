@@ -27,7 +27,8 @@ def make(**overrides) -> TrustReceipt:
         provider="openai",
         policy_version="2.0.0",
         telemetry={"resonance_score": 0.9, "overall_trust_score": 88},
-        timestamp="2026-01-01T00:00:00.000Z",
+        # Current time: verify() applies the default one-year maximum age.
+        timestamp=None,
     )
     kwargs.update(overrides)
     return TrustReceipt(**kwargs)
@@ -170,3 +171,51 @@ def test_optional_fields_omitted_when_absent():
     assert "telemetry" not in data
     assert "metadata" not in data
     assert verify_receipt(data, PUB).valid is True
+
+
+# ── Regression tests from review ──────────────────────────────────────────
+
+def test_from_json_preserves_empty_telemetry():
+    receipt = make(telemetry=None)
+    receipt.telemetry = {}  # allowed by the schema; a producer may emit it
+    data = receipt.sign(SEED).to_json()
+    assert data["telemetry"] == {}
+    assert verify_receipt(data, PUB).valid is True
+    restored = TrustReceipt.from_json(data)
+    assert restored.verify(PUB) is True
+    assert restored.to_json() == data
+
+
+def test_to_json_returns_an_independent_copy():
+    receipt = make(metadata={"tags": ["a"]}).sign(SEED)
+    data = receipt.to_json()
+    data["metadata"]["tags"].append("b")
+    data["interaction"]["model"] = "other"
+    data["telemetry"]["overall_trust_score"] = 1
+    assert receipt.verify(PUB) is True
+    assert receipt.to_json()["metadata"] == {"tags": ["a"]}
+
+
+def test_from_json_is_independent_of_the_source_dict():
+    data = make(metadata={"turn": 1}).sign(SEED).to_json()
+    restored = TrustReceipt.from_json(data)
+    data["metadata"]["turn"] = 2
+    data["interaction"]["model"] = "other"
+    assert restored.verify(PUB) is True
+
+
+def test_verify_receipt_returns_invalid_for_uncanonicalizable_numbers():
+    data = make().sign(SEED).to_json()
+    data["metadata"] = {"n": 2**63 - 1}  # no JavaScript producer could sign this
+    result = verify_receipt(data, PUB)
+    assert result.valid is False
+    assert result.checks["hash"].passed is False
+    assert result.checks["chain"].passed is False
+
+
+def test_verify_receipt_rejects_numeric_signature_value():
+    data = make().sign(SEED).to_json()
+    data["signature"]["value"] = 2**40  # bytes(2**40) would try to allocate 1 TB
+    result = verify_receipt(data, PUB)
+    assert result.valid is False
+    assert result.checks["signature"].passed is False

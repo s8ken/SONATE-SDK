@@ -99,7 +99,12 @@ def verify_receipt(
 
     # 2. Receipt id hash
     if receipt_id:
-        computed_id = contract.generate_receipt_id(receipt)
+        try:
+            computed_id = contract.generate_receipt_id(receipt)
+        except ValueError:
+            # A value JSON can't canonicalize identically in JavaScript (see
+            # crypto._js_safe_numbers): no producer could have signed it.
+            computed_id = None
         hash_valid = computed_id == receipt_id
         result.checks["hash"].passed = hash_valid
         result.checks["hash"].message = (
@@ -197,11 +202,15 @@ def verify_receipt(
     return result
 
 
-def _expected_chain_hash(receipt: Dict[str, Any], previous_hash: str) -> str:
+def _expected_chain_hash(receipt: Dict[str, Any], previous_hash: str) -> Optional[str]:
     payload = contract.clone(receipt)
     payload.pop("signature", None)
     payload["chain"] = {**(payload.get("chain") or {}), "chain_hash": ""}
-    return sha256_hex(canonicalize(payload) + previous_hash)
+    try:
+        return sha256_hex(canonicalize(payload) + previous_hash)
+    except ValueError:
+        # Not canonicalizable (see the hash check): the chain hash can't match.
+        return None
 
 
 def _trust_score(telemetry: Dict[str, Any]) -> Optional[float]:

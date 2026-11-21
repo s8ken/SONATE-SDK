@@ -24,6 +24,7 @@ Friendly API::
     restored = TrustReceipt.from_json(data)   # re-checks id integrity
 """
 
+import copy
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Union
 
@@ -136,8 +137,12 @@ class TrustReceipt:
         self.policy_version = policy_version
         self.key_version = key_version
         self.include_content = include_content
-        self.metadata = metadata
-        self.policy_state = policy_state
+        # Own deep copies of every caller-supplied structure, so a caller reusing
+        # a dict for the next call can't change a receipt that's already signed.
+        self.metadata = copy.deepcopy(metadata)
+        self.policy_state = copy.deepcopy(policy_state)
+        telemetry = copy.deepcopy(telemetry)
+        interaction = copy.deepcopy(interaction)
         self._timestamp_signed = timestamp_signed
         self._public_key = public_key
 
@@ -281,14 +286,17 @@ class TrustReceipt:
     # ── serialization ───────────────────────────────────────────────────
 
     def to_json(self) -> Dict[str, Any]:
-        """Return the receipt as a plain dict (signed if :meth:`sign` was called)."""
+        """Return the receipt as a plain dict (signed if :meth:`sign` was called).
+
+        The dict is a deep copy: editing it doesn't change this receipt.
+        """
         if not self.is_signed or self.id is None:
             raise ValueError("Receipt is not signed yet; call sign() before to_json()")
         receipt = self._core()
         receipt["id"] = self.id
         receipt["chain"] = {**self._chain, "chain_hash": self.chain_hash}
         receipt["signature"] = dict(self.signature)
-        return receipt
+        return copy.deepcopy(receipt)
 
     @staticmethod
     def from_json(data: Dict[str, Any]) -> "TrustReceipt":
@@ -299,6 +307,8 @@ class TrustReceipt:
         """
         if not isinstance(data, dict):
             raise TypeError("from_json expects a dict")
+        # Own a copy so later edits to ``data`` can't change the loaded receipt.
+        data = copy.deepcopy(data)
 
         computed_id = contract.generate_receipt_id(data)
         supplied_id = data.get("id")
@@ -323,8 +333,11 @@ class TrustReceipt:
             timestamp=data["timestamp"],
             include_content=("prompt" in interaction or "response" in interaction),
         )
-        # Preserve interaction exactly as supplied (avoid recomputing hashes).
+        # Preserve interaction and telemetry exactly as supplied: the constructor's
+        # rules for new receipts recompute hashes and drop an empty telemetry
+        # object, either of which would change the signed payload.
         obj.interaction = interaction
+        obj.telemetry = data.get("telemetry")
         obj.id = data.get("id") or computed_id
         obj.chain_hash = chain.get("chain_hash", "")
         obj._chain = chain

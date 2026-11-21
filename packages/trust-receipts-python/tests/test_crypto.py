@@ -94,3 +94,32 @@ def test_generate_key_pair_roundtrips():
 def test_seed_must_be_32_bytes():
     with pytest.raises(ValueError):
         crypto.sign_detached("x", "42" * 16)
+
+
+# ── Regression tests from review ──────────────────────────────────────────
+
+def test_canonicalize_large_integers_as_javascript_writes_them():
+    # JavaScript parses JSON numbers as doubles and prints them in shortest form;
+    # these are tokens a JavaScript producer can emit.
+    assert crypto.canonicalize({"n": 1700000000000000000}) == '{"n":1700000000000000000}'
+    assert crypto.canonicalize({"n": 9223372036854776000}) == '{"n":9223372036854776000}'
+    assert crypto.canonicalize([-1700000000000000000]) == "[-1700000000000000000]"
+
+
+def test_canonicalize_rejects_large_integers_javascript_would_round():
+    # 2**63 - 1 becomes 9223372036854776000 in JavaScript; signing it would make a
+    # receipt JavaScript can't verify, so it must still be refused, not rounded.
+    with pytest.raises(ValueError):
+        crypto.canonicalize({"n": 2**63 - 1})
+    with pytest.raises(ValueError):
+        crypto.canonicalize({"n": 2**53 + 1})
+
+
+def test_canonicalize_keeps_safe_integers_and_bools():
+    assert crypto.canonicalize({"a": 2**53 - 1, "b": True}) == '{"a":9007199254740991,"b":true}'
+
+
+@pytest.mark.parametrize("signature", [2**40, 64, -1, 1.5, None, ["00"], {"value": "00"}])
+def test_verify_detached_rejects_non_hex_signature_types_without_allocating(signature):
+    pub = crypto.get_public_key("42" * 32)
+    assert crypto.verify_detached(signature, "message", pub) is False
