@@ -8,3 +8,9 @@ coverage
 logs
 *.tgz
 *.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
