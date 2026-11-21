@@ -1,8 +1,8 @@
 {
-  "name": "sonate-sdk",
+  "name": "sonate-receipts",
   "version": "1.0.0",
   "private": true,
-  "description": "Public SONATE SDK monorepo",
+  "description": "Verifiable receipts for AI decisions: receipt format, TypeScript and Python SDKs, and an independent verifier",
   "workspaces": [
     "packages/*"
   ],
@@ -12,11 +12,12 @@
     "build:verify-sdk": "npm run build --workspace=@sonate/verify-sdk",
     "build:trust-receipts": "npm run build --workspace=@sonate/trust-receipts",
     "test": "npm run test --workspaces --if-present",
-    "clean": "npm run clean --workspaces --if-present"
+    "clean": "npm run clean --workspaces --if-present",
+    "example": "node examples/sign-and-verify.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/s8ken/SONATE-SDK.git"
+    "url": "https://github.com/s8ken/sonate-receipts.git"
   },
   "license": "MIT",
   "devDependencies": {

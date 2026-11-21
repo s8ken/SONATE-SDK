@@ -34,13 +34,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/s8ken/SONATE-SDK.git",
+    "url": "https://github.com/s8ken/sonate-receipts.git",
     "directory": "packages/sdk"
   },
   "bugs": {
-    "url": "https://github.com/s8ken/SONATE-SDK/issues"
+    "url": "https://github.com/s8ken/sonate-receipts/issues"
   },
-  "homepage": "https://github.com/s8ken/SONATE-SDK/tree/main/packages/sdk#readme",
+  "homepage": "https://github.com/s8ken/sonate-receipts/tree/main/packages/sdk#readme",
   "dependencies": {
     "@sonate/schemas": "^2.0.1",
     "@sonate/verify-sdk": "^2.0.2"
