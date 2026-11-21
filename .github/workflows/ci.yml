@@ -29,7 +29,9 @@ jobs:
 
   python:
     name: Python ${{ matrix.python }}
-    runs-on: ubuntu-latest
+    # The package supports Python >= 3.9, and setup-python's 3.9 builds stop at
+    # Ubuntu 24.04 (ubuntu-latest is 26.04).
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
