@@ -1,0 +1,25 @@
+{
+  "version": "2.2.0",
+  "timestamp": "2026-01-02T12:30:45.123Z",
+  "session_id": "session-conformance-002",
+  "agent_did": "did:sonate:agent-conformance-001",
+  "human_did": "did:sonate:human-conformance-001",
+  "mode": "directive",
+  "interaction": {
+    "model": "claude-3-sonnet",
+    "provider": "anthropic",
+    "prompt_hash": "cfe172741a07d92eb6a53ed21882b7a8d175c98bd9f3d0cd8e7dbe0918cc80cd",
+    "response_hash": "0013cb18478acb067bc2b9c342dad7001c5ed7930ec6e8deaeda5aa1223d20a8"
+  },
+  "chain": {
+    "previous_hash": "GENESIS",
+    "chain_hash": "8dd36f0693a3738cfda9194dbfa872471fb0de5a18582f2991c0ebecc554abc3"
+  },
+  "id": "10f11af9cedaf6f1cdc2d5aeec41065ae69be97ae541fd50945a6b6a94620a06",
+  "signature": {
+    "algorithm": "Ed25519",
+    "value": "3b8e1e23602b8e989072e4be07ac5db1c4b98c6407b71a894cbe4fa9d1ecf96e49a7be26f6d0e3d0e6a61465148600da549a9e503194f1bbdbb572e447d54602",
+    "key_version": "key_v1",
+    "timestamp_signed": "2026-01-02T12:30:45.123Z"
+  }
+}

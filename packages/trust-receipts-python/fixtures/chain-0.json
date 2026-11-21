@@ -1,0 +1,29 @@
+{
+  "version": "2.2.0",
+  "timestamp": "2026-02-01T00:00:00.000Z",
+  "session_id": "session-conformance-chain",
+  "agent_did": "did:sonate:agent-conformance-001",
+  "human_did": "did:sonate:human-conformance-001",
+  "mode": "constitutional",
+  "interaction": {
+    "model": "gpt-4",
+    "provider": "openai",
+    "prompt_hash": "49a401331295744f03ec35a17c2942689ac14a66cffe86cd9a43c314d5b37c4c",
+    "response_hash": "dd933ac179c8939dd6fda3e65fd7b52da5d0442b595944ec6aabed64072f0ee1"
+  },
+  "chain": {
+    "previous_hash": "GENESIS",
+    "chain_hash": "194b34de5f39021e7c5a24f95dfdce16d4446ebf4a335ea7acfc37c3fd6149b0",
+    "chain_length": 1
+  },
+  "telemetry": {
+    "resonance_score": 0.5
+  },
+  "id": "4d53c85a91d8ca4f58b0e51ce71f713863ff59c046155bfd2308c962ebe802b6",
+  "signature": {
+    "algorithm": "Ed25519",
+    "value": "5daee89b207f9c78b2b2f677c15510ce7f17b2f357f45e6672ac54c36144a6da4e7c83089d076fbf9f040d57b7dcb37ff2d9ee1d8f50030abc510b7023a2a30f",
+    "key_version": "key_v1",
+    "timestamp_signed": "2026-02-01T00:00:00.000Z"
+  }
+}

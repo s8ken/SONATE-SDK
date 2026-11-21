@@ -1,0 +1,45 @@
+{
+  "version": "2.2.0",
+  "timestamp": "2026-01-03T09:15:00.000Z",
+  "session_id": "session-conformance-003",
+  "agent_did": "did:sonate:agent-conformance-001",
+  "human_did": "did:sonate:human-conformance-001",
+  "mode": "constitutional",
+  "interaction": {
+    "model": "gpt-4o",
+    "provider": "openai",
+    "prompt": "Explain 世界 and 🌍 in one line.",
+    "response": "Both refer to 'the world' — 世界 in Japanese/Chinese, 🌍 as the globe emoji.",
+    "prompt_hash": "d0f91f3b6da74284d2c68f53969940eddf442ff00c7685dc633a81097e5124fd",
+    "response_hash": "ed34f987789884dd622b14dd7799c895a3350ca884c72e54ca96047fbeda36ae"
+  },
+  "chain": {
+    "previous_hash": "GENESIS",
+    "chain_hash": "d929b0c6527d6d8327cfa975e015d4f26257d5cb37681d8398e6f063092f91e0"
+  },
+  "policy_version": "2.1.0",
+  "telemetry": {
+    "resonance_score": 0.8123456789,
+    "bedau_index": 0.333
+  },
+  "policy_state": {
+    "consent_verified": true,
+    "override_available": false
+  },
+  "metadata": {
+    "tags": [
+      "demo",
+      "unicode"
+    ],
+    "context": {
+      "lang": "mixed"
+    }
+  },
+  "id": "25bb233d12f869564ebb9e7370be7c15f52626289cd5f1ac94ae2e1b745d7998",
+  "signature": {
+    "algorithm": "Ed25519",
+    "value": "64b458cc615bfc47f818bc3a51e4f7d42de2d822add998ad21e4f7d3be524bdf05768bc151b44839899c2d040178b108944b3d59135434f9ddb98f636ca00c0f",
+    "key_version": "key_v1",
+    "timestamp_signed": "2026-01-03T09:15:00.000Z"
+  }
+}

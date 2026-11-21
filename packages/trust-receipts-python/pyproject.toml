@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sonate-trust-receipts"
+version = "3.0.0"
+description = "Generate and verify SONATE v2.2.0 trust receipts — SSL for AI, cross-compatible with the JS SDK and @sonate/verify-sdk"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "SONATE", email = "sdk@yseeku.com" }]
+keywords = ["ai", "trust", "receipts", "cryptography", "ed25519", "sonate", "llm", "audit"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "PyNaCl>=1.5.0",
+    "rfc8785>=0.1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.urls]
+Homepage = "https://yseeku.com"
+Repository = "https://github.com/s8ken/sonate-receipts"
+Documentation = "https://yseeku.com/developers"
+
+[tool.setuptools.packages.find]
+include = ["sonate*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

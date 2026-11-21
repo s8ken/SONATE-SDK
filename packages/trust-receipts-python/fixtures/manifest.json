@@ -1,0 +1,19 @@
+{
+  "generator": "python",
+  "sdk_version": "3.0.0",
+  "receipt_version": "2.2.0",
+  "public_key_hex": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+  "fixtures": {
+    "single-constitutional": "single-constitutional.json",
+    "minimal-directive": "minimal-directive.json",
+    "rich-unicode-content": "rich-unicode-content.json",
+    "chain-0": "chain-0.json",
+    "chain-1": "chain-1.json",
+    "chain-2": "chain-2.json"
+  },
+  "chain": [
+    "chain-0.json",
+    "chain-1.json",
+    "chain-2.json"
+  ]
+}

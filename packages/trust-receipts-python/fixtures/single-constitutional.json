@@ -1,0 +1,38 @@
+{
+  "version": "2.2.0",
+  "timestamp": "2026-01-01T00:00:00.000Z",
+  "session_id": "session-conformance-001",
+  "agent_did": "did:sonate:agent-conformance-001",
+  "human_did": "did:sonate:human-conformance-001",
+  "mode": "constitutional",
+  "interaction": {
+    "model": "gpt-4-turbo",
+    "provider": "openai",
+    "prompt_hash": "115049a298532be2f181edb03f766770c0db84c22aff39003fec340deaec7545",
+    "response_hash": "a1b7eb2ee7a6aded8dda4e6cf30826f5afffb28a5597ee9389e91eb326d4e319"
+  },
+  "chain": {
+    "previous_hash": "GENESIS",
+    "chain_hash": "07c6eee0d319d0876114803e9a64912d59af143b0bffa5abf8f682f8210db5d2"
+  },
+  "policy_version": "2.0.0",
+  "telemetry": {
+    "resonance_score": 0.95,
+    "coherence_score": 0.91,
+    "truth_debt": 0.02,
+    "overall_trust_score": 92,
+    "trust_status": "PASS",
+    "ciq_metrics": {
+      "clarity": 0.9,
+      "integrity": 0.95,
+      "quality": 0.88
+    }
+  },
+  "id": "2d4e0ec3086ff7fae2f45189230738930198c4bcd3375176850925e165906fd3",
+  "signature": {
+    "algorithm": "Ed25519",
+    "value": "6038637048344c4c4d2aace2e324fd82dbc00cb804cd78a858e5efc8872a96155c8074778e75b5a97486faab60ea4a0fb87f36031774da3036598ea328c68800",
+    "key_version": "key_v1",
+    "timestamp_signed": "2026-01-01T00:00:00.000Z"
+  }
+}
