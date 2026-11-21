@@ -1,0 +1,7 @@
+{
+  "algorithm": "Ed25519",
+  "seed_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+  "seed_description": "32 bytes of 0x42",
+  "public_key_hex": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+  "key_version": "key_v1"
+}
