@@ -1,7 +1,7 @@
 # @sonate/trust-receipts
 
 [![npm version](https://img.shields.io/npm/v/@sonate/trust-receipts.svg)](https://www.npmjs.com/package/@sonate/trust-receipts)
-[![tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/s8ken/SONATE-SDK)
+[![CI](https://github.com/s8ken/sonate-receipts/actions/workflows/ci.yml/badge.svg)](https://github.com/s8ken/sonate-receipts/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Advanced local and self-managed receipt tooling for teams that want to sign and chain receipts outside the hosted SONATE platform.**
