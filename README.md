@@ -4,7 +4,8 @@ Verifiable receipts for AI decisions.
 
 Sign a receipt for every model call or agent action. Anyone with your public key
 can later check, offline and without trusting you or any service, that the
-record hasn't been changed and where it sits in your history.
+record hasn't been changed since you signed it and, given the receipts around
+it, that none were removed or reordered.
 
 ```
 VALID    receipt 1

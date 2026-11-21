@@ -9,7 +9,7 @@ import copy
 
 import pytest
 
-from sonate import TrustReceipt, get_public_key, sha256_hex, verify_receipt
+from sonate import TrustReceipt, contract, crypto, get_public_key, sha256_hex, verify_receipt
 
 SEED = "42" * 32
 PUB = get_public_key(SEED)
@@ -219,3 +219,47 @@ def test_verify_receipt_rejects_numeric_signature_value():
     result = verify_receipt(data, PUB)
     assert result.valid is False
     assert result.checks["signature"].passed is False
+
+
+@pytest.mark.parametrize("content, rendered", [
+    (0, "0"), (False, "false"), ([], "[]"), ({"b": 2, "a": 1}, '{"a":1,"b":2}'),
+    ("", ""), (None, ""),
+])
+def test_non_string_content_hashes_and_renders_like_the_js_sdk(content, rendered):
+    # JS: null/undefined -> "", strings as-is, anything else -> canonical JSON.
+    hashed = make(prompt=content, response=content).sign(SEED).to_json()
+    assert hashed["interaction"]["prompt_hash"] == sha256_hex(rendered)
+    assert hashed["interaction"]["response_hash"] == sha256_hex(rendered)
+    shown = make(prompt=content, response=content, include_content=True).sign(SEED).to_json()
+    assert shown["interaction"]["prompt"] == rendered
+    assert shown["interaction"]["response"] == rendered
+    assert verify_receipt(shown, PUB).valid is True
+
+
+def test_first_receipt_defaults_to_chain_length_1_like_the_js_sdk():
+    assert make().sign(SEED).to_json()["chain"]["chain_length"] == 1
+    later = make(previous_hash="ab" * 32).sign(SEED).to_json()
+    assert "chain_length" not in later["chain"]
+
+
+def _resign(receipt):
+    """Re-sign an edited receipt dict with the contract primitives."""
+    core = copy.deepcopy(receipt)
+    core.pop("signature", None)
+    core.pop("id", None)
+    core["chain"]["chain_hash"] = ""
+    core["id"] = contract.generate_receipt_id(core)
+    core["chain"]["chain_hash"] = contract.generate_chain_hash(core)
+    value = crypto.sign_detached(contract.canonicalize_for_signature(core), SEED)
+    return {**core, "signature": {**receipt["signature"], "value": value}}
+
+
+def test_from_json_keeps_extension_fields_and_legacy_version():
+    data = make().sign(SEED).to_json()
+    data["version"] = "2.0.0"
+    data["x_extension"] = {"tenant": "t-1", "tags": ["a"]}
+    data = _resign(data)
+    assert verify_receipt(data, PUB).valid is True
+    restored = TrustReceipt.from_json(data)
+    assert restored.verify(PUB) is True
+    assert restored.to_json() == data

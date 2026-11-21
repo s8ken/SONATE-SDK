@@ -42,6 +42,32 @@ __all__ = ["TrustReceipt", "iso_now"]
 VERSION = "2.2.0"
 DID_PREFIX = "did:sonate:"
 
+# Top-level fields TrustReceipt models; from_json() carries any others through
+# unchanged, as the JS SDK's fromJSON() does, so they stay signed.
+_MODELED_FIELDS = frozenset({
+    "id", "version", "timestamp", "session_id", "agent_did", "human_did", "mode",
+    "interaction", "chain", "signature", "telemetry", "policy_state",
+    "policy_version", "metadata",
+})
+
+
+def _content_to_string(content: Any) -> str:
+    """Render content as the JS SDK does: strings as-is, ``None`` as ``""``,
+    anything else as its RFC 8785 canonical JSON."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    return canonicalize(content)
+
+
+def _hash_content(content: Any) -> str:
+    """Hash content as the JS SDK does (spec §6), so 0, [] or a dict hash the
+    same in both languages."""
+    if isinstance(content, bytes):
+        return sha256_hex(content)
+    return sha256_hex(_content_to_string(content))
+
 # The `scores=` convenience alias partitions its keys the same way the JS SDK does
 # so the ergonomic path is cross-language-identical: clarity/integrity/quality land
 # in telemetry.ciq_metrics; every other key lands in telemetry.custom_scores.
@@ -153,12 +179,17 @@ class TrustReceipt:
             interaction, prompt, response, model, provider, prompt_hash, response_hash
         )
 
-        # Chain: first receipt uses GENESIS.
+        # Chain: first receipt uses GENESIS and, as in the JS SDK, is position 1
+        # unless told otherwise.
         prev = previous_hash or prev_receipt_hash or "GENESIS"
+        if chain_length is None and prev == "GENESIS":
+            chain_length = 1
         self._chain = {"previous_hash": prev, "chain_hash": ""}
         if chain_length is not None:
             self._chain["chain_length"] = chain_length
 
+        self.version = VERSION
+        self._extra_fields: Dict[str, Any] = {}
         self.id: Optional[str] = None
         self.chain_hash: str = ""
         self.signature: Optional[Dict[str, Any]] = None
@@ -191,14 +222,14 @@ class TrustReceipt:
             if prompt_hash is not None
             else base.get("prompt_hash")
             if base.get("prompt_hash") is not None
-            else sha256_hex(prompt_src if prompt_src else "")
+            else _hash_content(prompt_src)
         )
         resolved_response_hash = (
             response_hash
             if response_hash is not None
             else base.get("response_hash")
             if base.get("response_hash") is not None
-            else sha256_hex(response_src if response_src else "")
+            else _hash_content(response_src)
         )
 
         # Privacy-by-default: drop raw content unless include_content is set.
@@ -206,10 +237,8 @@ class TrustReceipt:
             base.pop("prompt", None)
             base.pop("response", None)
         else:
-            if prompt_src is not None:
-                base["prompt"] = prompt_src
-            if response_src is not None:
-                base["response"] = response_src
+            base["prompt"] = _content_to_string(prompt_src)
+            base["response"] = _content_to_string(response_src)
 
         base["prompt_hash"] = resolved_prompt_hash
         base["response_hash"] = resolved_response_hash
@@ -222,7 +251,8 @@ class TrustReceipt:
         JS ``stripUndefined`` behavior exactly.
         """
         core: Dict[str, Any] = {
-            "version": VERSION,
+            **self._extra_fields,
+            "version": self.version,
             "timestamp": self.timestamp,
             "session_id": self.session_id,
             "agent_did": self.agent_did,
@@ -333,11 +363,14 @@ class TrustReceipt:
             timestamp=data["timestamp"],
             include_content=("prompt" in interaction or "response" in interaction),
         )
-        # Preserve interaction and telemetry exactly as supplied: the constructor's
-        # rules for new receipts recompute hashes and drop an empty telemetry
-        # object, either of which would change the signed payload.
+        # Preserve the payload exactly as supplied: the constructor's rules for new
+        # receipts recompute hashes, drop an empty telemetry object and set the
+        # current version, and it knows nothing of extension fields; any of these
+        # would change the signed payload.
         obj.interaction = interaction
         obj.telemetry = data.get("telemetry")
+        obj.version = data.get("version", VERSION)
+        obj._extra_fields = {k: v for k, v in data.items() if k not in _MODELED_FIELDS}
         obj.id = data.get("id") or computed_id
         obj.chain_hash = chain.get("chain_hash", "")
         obj._chain = chain

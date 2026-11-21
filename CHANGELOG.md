@@ -41,8 +41,17 @@
   fail verification.
 - `TrustReceipt.from_json()` keeps an empty `telemetry` object, so loaded
   receipts that contain one still verify.
+- `from_json()` also keeps extension fields and a legacy `version` (such as
+  `2.0.0`), as the TypeScript SDK's `fromJSON()` does, so such receipts still
+  verify after loading.
 - When the previous receipt doesn't record its `chain_length`, the next receipt
   omits it, as the TypeScript SDK does, instead of claiming position 1.
+- A first receipt built directly with `TrustReceipt` now gets `chain_length: 1`,
+  as in the TypeScript SDK. Previously identical inputs gave different receipts
+  in the two languages.
+- Non-string `prompt` and `response` values are hashed, and shown with
+  `include_content`, as their canonical JSON, as in the TypeScript SDK and the
+  spec. Previously `0` or `[]` hashed as the empty string and a dict raised.
 - Integers beyond ±(2^53 − 1) that JavaScript can represent, such as nanosecond
   timestamps, now canonicalize as JavaScript writes them, so receipts signed in
   JavaScript with such values verify in Python. Integers JavaScript would round
